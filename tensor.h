@@ -1,4 +1,5 @@
 #include <iostream>
+#include <vector>
 #include <cstdarg>
 #include <iomanip>
 #include <cassert>
@@ -7,17 +8,9 @@
 
 /*
 TODO:
-    fully test all written code
-    test reshape
-    make reshape take in -1 to fill in expected shape
+    overload operator = (FIGURE OUT BEHAVIOR)
     make flatten 
     look into tensor splicing
-    add a copy methods
-    overload operator =
-    overload copy constructor
-    Refactor to accept both ... and * dims
-    Make overflow safe with assert and descriptive error messages
-
 */
 
 template <typename T>
@@ -27,26 +20,173 @@ class Tensor {
         Tensor(T * data, int n_dims, int * dims);
         ~Tensor();
 
+        Tensor(const Tensor<T>& tensor);
+        //operator=(const Tensor<T>& tensor);
+
         //Methods
 
-        //The default arg does nothing, it is used for stdarg to mount off of
+        /***************************************************************
+        * T& get(int dims, ...) const;
+        * 
+        * Parameters:
+        *   -dims -> This variable should be set to the number
+        *            of dims of the tensor, however it is just
+        *            here to mount the variable arguments off of
+        *            in other words it doesn't affect the output
+        *            but must be provided.
+        *
+        *   - ... -> This is for the dimensional indices
+        *            passing in less than the total amount of
+        *            dimensions in the tensor leads to undefined
+        *            behavior.
+        *  Returns:
+        *       The value stored at tensor[i, j, k, ... , z]
+        ***************************************************************/
         T& get(int dims, ...) const;
+
+        /***************************************************************
+        * T& get(int * dims) const;
+        * 
+        * Parameters:
+        *   -dims -> a pointer to an array of length
+        *            n_dims, which stores the dimensional
+        *            indices to be accessed
+        *
+        *  Returns:
+        *       The value stored at tensor[i, j, k, ... , z]
+        ***************************************************************/
         T& get(int * dims) const;
+
+        /***************************************************************
+        * bool is_contiguous() const {return contiguous;}
+        *  
+        * Returns:
+        *   A bool representing whether or not the internal array
+        *   is contiguous
+        ***************************************************************/
         bool is_contiguous() const {return contiguous;}
 
-        std::pair<int * , int> shape() const {return std::make_pair(dims, n_dims);}
-        std::pair<Tensor * , int> getChildren() const {return std::make_pair(children, n_children);}
-        std::pair<Tensor *, int> getParents() const {return std::make_pair(parents, n_parents);}
+        /***************************************************************
+        * std::pair<const int * , int> shape() const {return std::make_pair(dims, n_dims);}
+        *
+        *   Returns:
+        *     A pair: first  -> a pointer to a const array storing the dimensions,
+        *             second -> the total number of dimensions
+        ***************************************************************/
+        std::pair<const int * , int> shape() const {return std::make_pair(dims, n_dims);}
+
+        /***************************************************************
+        * std::vector<Tensor*> getChildren() const;
+        *
+        *   Returns:
+        *       A vector storing the tensors children
+        ***************************************************************/
+        std::vector<Tensor*> getChildren() const { return children; }
+
+        /***************************************************************
+        * std::vector<Tensor*> getParents() const;
+        *
+        *   Returns:
+        *       A vector storing the tensors parents
+        ***************************************************************/
+        std::vector<Tensor*> getParents() const { return parents; }
+
+        /***************************************************************
+        * int * getMults() const { return mults; }
+        *
+        *   Returns:
+        *       A pointer to the array storing the offsets for indexing the internal array
+        *       The size of the array is n_dims (tensor.getNDims())
+        ***************************************************************/
         int * getMults() const { return mults; }
+
+        /***************************************************************
+        * int * getDims() const { return dims; } 
+        *
+        *   Returns:
+        *       A pointer to the array storing the tensors dimensions
+        *       The size of the array is n_dims (tensor.getNDims())
+        ***************************************************************/
         int * getDims() const { return dims; } 
+
+        /***************************************************************
+        * int getNDims() const { return n_dims; }
+        *
+        *   Returns:
+        *       the total number of dimensions for the tensor
+        ***************************************************************/
         int getNDims() const { return n_dims; }
+
+        /***************************************************************
+        * int getTotalElements() const { return n_els; }
+        *
+        *   Returns:
+        *       the total number of elements of the array,
+        *       this is also the length of the internal storage array
+        *       for the tensor.
+        ***************************************************************/
         int getTotalElements() const { return n_els; }
+
+        /***************************************************************
+        * int getIndex(int * dims) const;
+        *
+        *   Returns:
+        *       The calculated internal array index for the element stored
+        *       in the tensor at Tensor[i, j, k, ..., z]
+        ***************************************************************/
         int getIndex(int * dims) const;
 
         /*Reshape Methods*/
+
+        /***************************************************************
+        * void as_contiguous();
+        *
+        *   Description:
+        *       rearranges the internal storage array such that it is
+        *       C contiguous (with respect to the rows).
+        *       The internal contiguous array allows us to reshape the tensor
+        *       into other dimensions. (Reshape calls this method before shaping the tensor)
+        ***************************************************************/
         void as_contiguous();
-        void reshape(int dims=69, ...);
-        void reshape(int * dims);
+
+        /***************************************************************
+        * void reshape(int dims, ...);
+        *
+        *   Description:
+        *       shapes the tensor into the new dimension with n_dims now = to dims.
+        *       Note the dims arg must be = to the amount of dimension arguements
+        *       that follows or else the function will behave in a undefined manner
+
+        *       NOTE
+        *       the product of all dimensions also must be equal to the previous
+        *       dimensions product (the total length of the internal array)
+        ***************************************************************/
+        void reshape(int dims, ...);
+
+        /***************************************************************
+        * void reshape(int n_dims, int * dims);
+        *
+        *   Description:
+        *       shapes the tensor into the new dimension with n_dims now = to dims.
+        *       Note the dims arg must be = to the length of the dims array
+        *       that follows or else the function will behave in a undefined manner
+
+        *       NOTE
+        *       the product of all dimensions also must be equal to the previous
+        *       dimensions product (the total length of the internal array)
+        ***************************************************************/
+        void reshape(int n_dims, int * dims);
+
+        /***************************************************************
+        * void transpose();
+        *
+        *   Description:
+        *       dimensionality of tensor must be >=2, Transpose swaps
+        *       the last two dimensions of the tensor. This action
+        *       makes the tensor no longer contiguous. (A double transpose
+        *       even though preserving the contiguous property of the tensor
+        *       will not be treated as if it is contiguous after ward).
+        ***************************************************************/
         void transpose();
 
         /*Debug Methods*/
@@ -73,11 +213,9 @@ class Tensor {
         Ops * op
         */
 
-        Tensor * children;
-        int n_children;
+        std::vector<Tensor*> children;
+        std::vector<Tensor*> parents;
 
-        Tensor * parents;
-        int n_parents;
 };
 
 /*###############################################################################################################*/
@@ -119,10 +257,8 @@ Tensor<T>::Tensor(int  n_dims, ...) {
     n_els = mult;
 
     //Default values
-    children = NULL;
-    parents  =  NULL;
-    n_children = 0;
-    n_parents = 0;
+    children = std::vector<Tensor*>();
+    parents  =  std::vector<Tensor*>();
     contiguous = true;
 }
 /*###############################################################################################################*/
@@ -155,11 +291,35 @@ Tensor<T>::Tensor(T * data, int n_dims, int * dims) {
     }
 
     //Default values
-    children = NULL;
-    parents  =  NULL;
-    n_children = 0;
-    n_parents = 0;
+    children = std::vector<Tensor*>();
+    parents  =  std::vector<Tensor*>();
     contiguous = true;
+}
+/*###############################################################################################################*/
+template <typename T>
+Tensor<T>::Tensor(const Tensor<T>& tensor) {
+
+    //copy values of non pointer values
+    this->n_dims = tensor.n_dims;
+    this->n_els = tensor.n_els;
+    this->contiguous = tensor.contiguous;
+    this->children = tensor.children;
+    this->parents = tensor.parents;
+
+    //Allocate new memory
+    this->data = new T[n_els];
+    this->dims = new int[n_dims];
+    this->mults = new int[n_dims];
+    this->local_els = new int[n_dims];
+
+    //Copy over values
+    for(int i=0; i<n_els; i++) 
+        this->data[i] = tensor.data[i];
+    for(int i=0; i<n_dims; i++) {
+        this->dims[i] = tensor.dims[i];
+        this->mults[i] = tensor.mults[i];
+        this->local_els[i] = tensor.local_els[i];
+    }
 }
 /*###############################################################################################################*/
 template <typename T>
@@ -186,7 +346,26 @@ class iterator {
         iterator(const Tensor<T> *  tensor, int * curr);
         ~iterator(){ delete [] curr; }
 
+        /***************************************************************
+        * void next();
+        *
+        *   Description:
+        *       This will return the value being pointed 
+        *       to by the iterator and the increment by 1
+        *       Will return an Error if next() is called on a
+        *       index out of bounds index.
+        ***************************************************************/
         T next();
+
+        /***************************************************************
+        * void back();
+        *
+        *   Description:
+        *       This will return the value being pointed 
+        *       to by the iterator and the decrement by 1
+        *       Will return an Error if next() is called on a
+        *       index out of bounds index.
+        ***************************************************************/
         T back();
     private:
         const Tensor<T> * tensor;
@@ -245,11 +424,17 @@ T iterator<T>::next() {
     //Increment iterator
 
     //If last element leave
-    if(curr_ind == n_els-1) return return_value;
+    if(curr_ind == n_els-1) {
+        curr_ind++;
+        return return_value;
+    }
+    if(curr_ind >= n_els || curr_ind < 0){
+        assert(false && "OUT OF BOUNDS");
+    }
     int inc = n_dims - 1;
     curr_ind++;
     while( (curr[inc] + 1) >= dims[inc] ){
-        assert(inc >= 0 && "OUT OF BOUNDS ERROR");
+        assert(inc >= 0 && "ERROR GETTTING NEXT");
         curr[inc] = 0;
         inc--;
     }
@@ -268,11 +453,19 @@ T iterator<T>::back(){
     //Increment iterator
 
     //if first element leave
-    if(curr_ind == 0) return return_value;
+    if(curr_ind == 0) {
+        curr_ind--;
+        return return_value;
+    }
+
+    if(curr_ind >= n_els || curr_ind < 0){
+        assert(false && "OUT OF BOUNDS");
+    }
+
     int inc = n_dims-1;
     curr_ind--;
     while( (curr[inc]) == 0 ){
-        assert(inc < n_dims && "OUT OF BOUNDS ERROR");
+        assert(inc < n_dims && "ERROR GETTING PREVIOUS");
         curr[inc] = dims[inc]-1;
         inc--;
     }
@@ -293,17 +486,13 @@ T& Tensor<T>::get(int n_dims , ...) const {
     /*
     Gets the data stored at index dims
     */
+    int arr[n_dims];
     va_list indices;
     va_start(indices, n_dims);
-    int index = 0;
-    for(int i=0; i<n_dims; i++) {
-        int sub_index = va_arg(indices, int);
-        index += mults[i] * sub_index;
-    }
-    assert(index < n_els && "OUT OF BOUNDS ERROR");
-
+    for(int i=0; i<this->n_dims; i++) arr[i] = va_arg(indices, int);
     va_end(indices);
-    return data[index];
+
+    return get(arr);
 }
 /*###############################################################################################################*/
 template <typename T>
@@ -376,8 +565,8 @@ std::ostream& operator<<(std::ostream& ostr, const Tensor<V> & tensor) {
     std::cout << std::endl;
     std::cout << "CONTIGUOUS: " << (tensor.is_contiguous() ? "TRUE" : "FALSE") << std::endl;
 
-    ostr << "CHILDREN: " << tensor.n_children << "\n";
-    ostr << "PARENTS: " << tensor.n_parents << "\n";
+    ostr << "CHILDREN: " << tensor.children.size() << "\n";
+    ostr << "PARENTS: " << tensor.parents.size() << "\n";
     return ostr;
 }
 /*###############################################################################################################*/
@@ -438,39 +627,51 @@ void Tensor<T>::_printInternalArr() const {
 }
 /*###############################################################################################################*/
 
-
 /*###############################################################################################################*/
-/*
-    AFTER CHECKING ALL PREIVOUS CODE UNCOMMENT
 template <typename T>
 void Tensor<T>::reshape(int n_dims, int * dims) {
+    /*
     Reshapes the tensor to have the named dimensions
+    */
+
+    int total_els = 1;
+    for(int i=0; i<n_dims; i++) total_els*=dims[i];
+    assert(n_els == total_els && "INVALID SHAPE CONVERSION");
 
     //Make sure the array is contiguous
-    as_contiguous();
+    if(!contiguous) as_contiguous();
 
     //Delete previous dimensions
-    delete this->dims;
-    delete this->mults;
-    delete this->local_els;
+    delete [] this->dims;
+    delete [] this->mults;
+    delete [] this->local_els;
 
     //Reallocate metadata arrays
     this->dims = new int[n_dims];
-    this->mutls = new int[n_dims];
+    this->mults = new int[n_dims];
     this->local_els = new int[n_dims];
+    this->n_dims = n_dims;
     
     //Copy dims over 
     for(int i=0; i<n_dims; i++) this->dims[i] = dims[i];
-    this->n_dims = n_dims;
 
     //Calculate new offsets and local_els
-    int mult = 1
-    for(int i=n_dim-1; i>=0; i--){
+    int mult = 1;
+    for(int i=n_dims-1; i>=0; i--){
         this->mults[i] = mult;
         mult *= this->dims[i];
-        this->local_els[i] = mults;
+        this->local_els[i] = mult;
     }
 
 }
-*/
+/*###############################################################################################################*/
+template <typename T>
+void Tensor<T>::reshape(int n_dims, ...) {
+    int arr[n_dims];
+    va_list dims;
+    va_start(dims, n_dims);
+    for(int i=0; i<n_dims; i++) arr[i] = va_arg(dims, int);
+    va_end(dims);
+    reshape(n_dims, arr);
+}
 /*###############################################################################################################*/
