@@ -81,9 +81,12 @@ int main(){
 
     std::cout << t1 << std::endl;
 
+    t1.init_grad();
+
+    //Testin copy constructor and operator=
     Tensor<int> t2(t1);
     std::cout << t2 << std::endl;
-
-
-    return 0;
+    Tensor<int> t3(3, 5,5,5);
+    t3 = t2;
+    std::cout << t3 << std::endl;
 }

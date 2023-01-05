@@ -1,3 +1,6 @@
+#ifndef TENSOR_H_
+#define TENSOR_H_
+
 #include <iostream>
 #include <vector>
 #include <cstdarg>
@@ -5,23 +8,18 @@
 #include <cassert>
 #include <utility>
 
-
-/*
-TODO:
-    overload operator = (FIGURE OUT BEHAVIOR)
-    make flatten 
-    look into tensor splicing
-*/
+template <typename V> class Op;
 
 template <typename T>
 class Tensor {
     public:
         Tensor(int n_dims, ...);
         Tensor(T * data, int n_dims, int * dims);
+        Tensor(int n_dims, int * dims);
         ~Tensor();
 
         Tensor(const Tensor<T>& tensor);
-        //operator=(const Tensor<T>& tensor);
+        Tensor<T> & operator=(const Tensor<T>& tensor);
 
         //Methods
 
@@ -92,22 +90,22 @@ class Tensor {
         std::vector<Tensor*> getParents() const { return parents; }
 
         /***************************************************************
-        * int * getMults() const { return mults; }
+        * const int * getMults() const { return mults; }
         *
         *   Returns:
         *       A pointer to the array storing the offsets for indexing the internal array
         *       The size of the array is n_dims (tensor.getNDims())
         ***************************************************************/
-        int * getMults() const { return mults; }
+        const int * getMults() const { return mults; }
 
         /***************************************************************
-        * int * getDims() const { return dims; } 
+        * const int * getDims() const { return dims; } 
         *
         *   Returns:
         *       A pointer to the array storing the tensors dimensions
         *       The size of the array is n_dims (tensor.getNDims())
         ***************************************************************/
-        int * getDims() const { return dims; } 
+        const int * getDims() const { return dims; } 
 
         /***************************************************************
         * int getNDims() const { return n_dims; }
@@ -189,6 +187,57 @@ class Tensor {
         ***************************************************************/
         void transpose();
 
+        /***************************************************************
+        * void setAll(T val);
+        *
+        *   Description:
+        *       sets all the elements to the value specified
+        ***************************************************************/
+        void setAll(T val){ for(int i=0; i<n_els; i++) data[i] = val;}
+
+        /***************************************************************
+        * void init_grad();
+        *
+        *   Description:
+        *       Initializes the gradient to all 0s in the
+        *       current shape of the tensor
+        ***************************************************************/
+        void init_grad();
+
+        /***************************************************************
+        * bool is_grad_init()
+        *
+        *   Returns:
+        *       a bool represeting whether or not the grad
+        *       of the tensor has been initialized
+        ***************************************************************/
+        bool is_grad_init() const { return grad_initialized; }
+
+        /***************************************************************
+        * void no_history()
+        *
+        *   Description:
+        *       Sets the track_history() flag to false
+        *       This means it will not be included in the
+        *       Computational Graph
+        ***************************************************************/
+        void no_history() { track_history = false; }
+
+
+        /***************************************************************
+        * void reshape_grad(int n_dims, int * dims);
+        *
+        *   Description:
+        *       shapes the grad into the new dimension with n_dims now = to dims.
+        *       Note the dims arg must be = to the length of the dims array
+        *       that follows or else the function will behave in a undefined manner
+
+        *       NOTE
+        *       the product of all dimensions also must be equal to the previous
+        *       dimensions product (the total length of the internal array)
+        ***************************************************************/
+        void reshape_grad(int n_dims, int * dims);
+
         /*Debug Methods*/
         void _printInternalArr() const;
 
@@ -209,135 +258,26 @@ class Tensor {
 
         bool contiguous;
 
-        /*
-        Ops * op
-        */
+
+        bool track_history = true;
+
+        bool grad_initialized = false;
+        Tensor<T> * grad;
+        Op<T> * op;
 
         std::vector<Tensor*> children;
         std::vector<Tensor*> parents;
 
 };
-
-/*###############################################################################################################*/
-/*                                        CONSTRUCTORS/DESTRUCTOR                                                */
-/*###############################################################################################################*/
-template <typename T>
-Tensor<T>::Tensor(int  n_dims, ...) {
-    //allocate helpers for indexing
-    mults = new int[n_dims];
-    dims = new int[n_dims];
-    local_els = new int[n_dims];
-
-    this->n_dims = n_dims;
-
-    va_list dimensions;
-    va_start(dimensions, n_dims);
-    int dim;
-
-
-    //Copy the dimensions
-    for(int i=0; i<n_dims; i++){
-        dim = va_arg(dimensions, int);
-        this->dims[i] = dim;
-    }
-
-    //set the multipliers for each index
-    int mult = 1;
-    for(int i=n_dims-1; i>=0; i--) {
-        mults[i] = dims[i];
-        mult *= dims[i];
-        local_els[i] = mult;
-    }
-
-    //Clean up variable args
-    va_end(dimensions);
-
-    //allocate the full amount of data
-    data = new T[mult];
-    n_els = mult;
-
-    //Default values
-    children = std::vector<Tensor*>();
-    parents  =  std::vector<Tensor*>();
-    contiguous = true;
-}
-/*###############################################################################################################*/
-template <typename T>
-Tensor<T>::Tensor(T * data, int n_dims, int * dims) {
-    //Allocate the data
-    //And copy dims
-    int els = 1;
-    this->n_dims = n_dims;
-    this->dims = new int[n_dims];
-    this->mults = new int[n_dims];
-    this->local_els = new int[n_dims];
-    for(int i=0; i<n_dims; i++) {
-        els*=dims[i];
-        this->dims[i] = dims[i];
-    }
-    this->data = new T[els];
-    n_els = els;
-
-    //Copy over the values
-    for(int i=0; i<els; i++)
-        this->data[i] = data[i];
-    
-    //Set the multipliers
-    int mult=1;
-    for(int i=n_dims-1; i>=0; i--) {
-        mults[i] = mult;
-        mult *=dims[i];
-        local_els[i] = mult;
-    }
-
-    //Default values
-    children = std::vector<Tensor*>();
-    parents  =  std::vector<Tensor*>();
-    contiguous = true;
-}
-/*###############################################################################################################*/
-template <typename T>
-Tensor<T>::Tensor(const Tensor<T>& tensor) {
-
-    //copy values of non pointer values
-    this->n_dims = tensor.n_dims;
-    this->n_els = tensor.n_els;
-    this->contiguous = tensor.contiguous;
-    this->children = tensor.children;
-    this->parents = tensor.parents;
-
-    //Allocate new memory
-    this->data = new T[n_els];
-    this->dims = new int[n_dims];
-    this->mults = new int[n_dims];
-    this->local_els = new int[n_dims];
-
-    //Copy over values
-    for(int i=0; i<n_els; i++) 
-        this->data[i] = tensor.data[i];
-    for(int i=0; i<n_dims; i++) {
-        this->dims[i] = tensor.dims[i];
-        this->mults[i] = tensor.mults[i];
-        this->local_els[i] = tensor.local_els[i];
-    }
-}
-/*###############################################################################################################*/
-template <typename T>
-Tensor<T>::~Tensor(){
-    /*Have to Deal with Children/Parents when OPS are created*/
-    delete [] data;
-    delete [] mults;
-    delete [] dims;
-    delete [] local_els;
-}
-/*###############################################################################################################*/
-
 /* The Tensor Methods are defined below the Iterator class*/
+
+/*###############################################################################################################*/
 
 /*
     The Iterator Class is used to iterate through the 
-    ndarray as if it was a for loop. The iterator class
-    is undefined after the tensor class is destroyed
+    ndarray as if it was using n for loops (one for each dimension). 
+    The iterator class is undefined after the tensor class is destroyed
+    This allows in order iteration of a non contiguous Tensor.
 */
 template <typename T>
 class iterator {
@@ -372,7 +312,7 @@ class iterator {
         int n_dims;
         int * curr;
         int curr_ind;
-        int * dims;
+        const int * dims;
         int n_els;
 };
 /*###############################################################################################################*/
@@ -476,6 +416,198 @@ T iterator<T>::back(){
 /*###############################################################################################################*/
 
 /*###############################################################################################################*/
+/*                                        CONSTRUCTORS/DESTRUCTOR                                                */
+/*###############################################################################################################*/
+template <typename T>
+Tensor<T>::Tensor(int  n_dims, ...) {
+    //allocate helpers for indexing
+    mults = new int[n_dims];
+    dims = new int[n_dims];
+    local_els = new int[n_dims];
+
+    this->n_dims = n_dims;
+
+    va_list dimensions;
+    va_start(dimensions, n_dims);
+    int dim;
+
+
+    //Copy the dimensions
+    for(int i=0; i<n_dims; i++){
+        dim = va_arg(dimensions, int);
+        this->dims[i] = dim;
+    }
+
+    //set the multipliers for each index
+    int mult = 1;
+    for(int i=n_dims-1; i>=0; i--) {
+        mults[i] = dims[i];
+        mult *= dims[i];
+        local_els[i] = mult;
+    }
+
+    //Clean up variable args
+    va_end(dimensions);
+
+    //allocate the full amount of data
+    data = new T[mult];
+    n_els = mult;
+
+    //Default values
+    children = std::vector<Tensor*>();
+    parents  =  std::vector<Tensor*>();
+    contiguous = true;
+}
+/*###############################################################################################################*/
+template <typename T>
+Tensor<T>::Tensor(int n_dims, int * dims){
+    //Allocate the data
+    //And copy dims
+    int els = 1;
+    this->n_dims = n_dims;
+    this->dims = new int[n_dims];
+    this->mults = new int[n_dims];
+    this->local_els = new int[n_dims];
+    for(int i=0; i<n_dims; i++) {
+        els*=dims[i];
+        this->dims[i] = dims[i];
+    }
+    this->data = new T[els];
+    n_els = els;
+
+    //Set the multipliers
+    int mult=1;
+    for(int i=n_dims-1; i>=0; i--) {
+        mults[i] = mult;
+        mult *=dims[i];
+        local_els[i] = mult;
+    }
+
+    //Default values
+    children = std::vector<Tensor*>();
+    parents  =  std::vector<Tensor*>();
+    contiguous = true;
+}
+/*###############################################################################################################*/
+template <typename T>
+Tensor<T>::Tensor(T * data, int n_dims, int * dims) {
+    //Allocate the data
+    //And copy dims
+    int els = 1;
+    this->n_dims = n_dims;
+    this->dims = new int[n_dims];
+    this->mults = new int[n_dims];
+    this->local_els = new int[n_dims];
+    for(int i=0; i<n_dims; i++) {
+        els*=dims[i];
+        this->dims[i] = dims[i];
+    }
+    this->data = new T[els];
+    n_els = els;
+
+    //Copy over the values
+    for(int i=0; i<els; i++)
+        this->data[i] = data[i];
+    
+    //Set the multipliers
+    int mult=1;
+    for(int i=n_dims-1; i>=0; i--) {
+        mults[i] = mult;
+        mult *=dims[i];
+        local_els[i] = mult;
+    }
+
+    //Default values
+    children = std::vector<Tensor*>();
+    parents  =  std::vector<Tensor*>();
+    contiguous = true;
+}
+/*###############################################################################################################*/
+template <typename T>
+Tensor<T>::Tensor(const Tensor<T>& tensor) {
+
+    //copy values of non pointer values
+    this->n_dims = tensor.n_dims;
+    this->n_els = tensor.n_els;
+    this->contiguous = tensor.contiguous;
+    this->children = tensor.children;
+    this->parents = tensor.parents;
+
+    this->track_history = tensor.track_history;
+    this->grad_initialized = tensor.grad_initialized;
+    if(this->grad_initialized){
+        //The gradients gradient is not initialized
+        //So we wont get stuck in a loop
+        this->grad = new Tensor<T>(*tensor.grad);
+    }
+
+    //Allocate new memory
+    this->data = new T[n_els];
+    this->dims = new int[n_dims];
+    this->mults = new int[n_dims];
+    this->local_els = new int[n_dims];
+
+    //Copy over values
+    for(int i=0; i<n_els; i++) 
+        this->data[i] = tensor.data[i];
+    for(int i=0; i<n_dims; i++) {
+        this->dims[i] = tensor.dims[i];
+        this->mults[i] = tensor.mults[i];
+        this->local_els[i] = tensor.local_els[i];
+    }
+}
+/*###############################################################################################################*/
+template <typename T>
+Tensor<T> & Tensor<T>::operator=(const Tensor<T>& tensor) {
+    if(this != &tensor){
+        //copy values of non pointer values
+        this->n_dims = tensor.n_dims;
+        this->n_els = tensor.n_els;
+        this->contiguous = tensor.contiguous;
+        this->children = tensor.children;
+        this->parents = tensor.parents;
+
+        //Delete and Allocate new memory
+        delete [] this->data;
+        delete [] this->dims;
+        delete [] this->mults;
+        delete [] this->local_els;
+        
+        this->data = new T[n_els];
+        this->dims = new int[n_dims];
+        this->mults = new int[n_dims];
+        this->local_els = new int[n_dims];
+
+        this->track_history = tensor.track_history;
+        this->grad_initialized = tensor.grad_initialized;
+        if(this->grad_initialized){
+            //The gradients gradient is not initialized
+            //So we wont get stuck in a loop
+            this->grad = new Tensor<T>(*tensor.grad);
+        }
+        //Copy over values
+        for(int i=0; i<n_els; i++) 
+            this->data[i] = tensor.data[i];
+        for(int i=0; i<n_dims; i++) {
+            this->dims[i] = tensor.dims[i];
+            this->mults[i] = tensor.mults[i];
+            this->local_els[i] = tensor.local_els[i];
+        }
+    }
+    return *this;
+}
+/*###############################################################################################################*/
+template <typename T>
+Tensor<T>::~Tensor(){
+    /*Have to Deal with Children/Parents when OPS are created*/
+    delete [] data;
+    delete [] mults;
+    delete [] dims;
+    delete [] local_els;
+    if (grad_initialized) delete grad;
+}
+
+/*###############################################################################################################*/
 /*                                                  Methods                                                      */
 /*###############################################################################################################*/
 
@@ -567,6 +699,14 @@ std::ostream& operator<<(std::ostream& ostr, const Tensor<V> & tensor) {
 
     ostr << "CHILDREN: " << tensor.children.size() << "\n";
     ostr << "PARENTS: " << tensor.parents.size() << "\n";
+
+
+    ostr << "GRADIENT: ";
+    if(tensor.is_grad_init())
+        ostr << *tensor.grad << std::endl;
+    else
+        ostr << "Not Initialized" << std::endl;
+
     return ostr;
 }
 /*###############################################################################################################*/
@@ -626,8 +766,6 @@ void Tensor<T>::_printInternalArr() const {
     std::cout << std::endl;
 }
 /*###############################################################################################################*/
-
-/*###############################################################################################################*/
 template <typename T>
 void Tensor<T>::reshape(int n_dims, int * dims) {
     /*
@@ -675,3 +813,20 @@ void Tensor<T>::reshape(int n_dims, ...) {
     reshape(n_dims, arr);
 }
 /*###############################################################################################################*/
+template <typename T>
+void Tensor<T>::init_grad() {
+    if(grad_initialized) return;
+    grad_initialized = true;
+    grad = new Tensor<T>(this->n_dims, this->dims);
+    grad->setAll(0);
+    grad->no_history();
+}
+/*###############################################################################################################*/
+template <typename T>
+void Tensor<T>::reshape_grad(int n_dims, int * dims){
+    assert(grad_initialized && "GRAD NOT INITIALIZED");
+    grad->reshape(n_dims, dims);
+}
+/*###############################################################################################################*/
+
+#endif
