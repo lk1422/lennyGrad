@@ -1,5 +1,7 @@
 TODO:
     Create more OPS
+    Create Reshape Ops (transpose, permute)
+    Create Reduction Ops (sum)
     Tensor Clean up of Comp Graph (Set of tensor pointers)
 
 

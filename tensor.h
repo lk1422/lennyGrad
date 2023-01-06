@@ -53,7 +53,7 @@ class Tensor {
         *  Returns:
         *       The value stored at tensor[i, j, k, ... , z]
         ***************************************************************/
-        T& get(int * dims) const;
+        T& get(const int * dims) const;
 
         /***************************************************************
         * bool is_contiguous() const {return contiguous;}
@@ -359,6 +359,14 @@ class iterator {
         *       index out of bounds index.
         ***************************************************************/
         T& back();
+
+        /***************************************************************
+        * std::pair<const int *, int> getCurr() const 
+        *
+        *   Returns:
+        *      Returns a pair of current index, and dimension of tensor
+        ***************************************************************/
+        std::pair<const int *, int> getCurr() const { return std::make_pair(curr, n_dims); }
     private:
         const Tensor<T> * tensor;
         int n_dims;
@@ -682,7 +690,7 @@ T& Tensor<T>::get(int n_dims , ...) const {
 }
 /*###############################################################################################################*/
 template <typename T>
-T& Tensor<T>::get(int * dims) const {
+T& Tensor<T>::get(const int * dims) const {
     /*
     Gets the data stored at index dims
     */
@@ -772,6 +780,7 @@ void Tensor<T>::transpose() {
         -it will swap the last 2 dims
     */
     assert(n_dims >= 2 && "MUST HAVE A SIZE OF AT LEAST 2 TO PREFORM A TRANSPOSE");
+    assert(!track_history && "USING THIS TRANSPOSE WILL RESULT IN ERRORS COMPUTING THE GRADIENT USE lg.Transpose(tensor)");
     int temp = mults[n_dims-1];
     mults[n_dims-1] = mults[n_dims-2];
     mults[n_dims-2] = temp;
@@ -827,8 +836,17 @@ void Tensor<T>::reshape(int n_dims, int * dims) {
     */
 
     int total_els = 1;
-    for(int i=0; i<n_dims; i++) total_els*=dims[i];
+    bool done = this->n_dims == n_dims;
+    for(int i=0; i<n_dims; i++) {
+        if(done){
+            done &= dims[i] == this->dims[i];
+        }
+        total_els*=dims[i];
+    }
+    std::cout << n_els << " " << total_els << std::endl;
     assert(n_els == total_els && "INVALID SHAPE CONVERSION");
+
+    if(done) return;
 
     //Make sure the array is contiguous
     if(!contiguous) as_contiguous();

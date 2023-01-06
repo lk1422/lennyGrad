@@ -5,100 +5,41 @@
 
 int main(){
 
-    int arr[125];
+    float arr[125];
     int dims[] = {5, 5, 5};
     for(int i=0; i<125; i++) arr[i] = i+1;
-    Tensor<int> t1 (arr, 3, dims);
-    t1._printInternalArr();
-    for(int i=0; i<5; i++) {
-        for(int j=0; j<5; j++){
-            for (int k=0; k<5; k++){
-                std::cout << std::setw(5) << t1.get(3, i,j,k) << " ";
-            }
-            std::cout << std::endl;
-        }
-        std::cout << std::endl;
-    }
-    std::cout << t1 << std::endl;
+    Tensor<float> * t1 = new Tensor<float>(arr, 3, dims);
+    Tensor<float> * t2 = new Tensor<float>(*t1);
 
-    std::cout << "TRANSPOSING" << std::endl;
-    t1.transpose();
+    Tensor<float> * t3 = OPS::ADD<float>(t1, t2);
 
-    t1._printInternalArr();
-    for(int i=0; i<5; i++) {
-        for(int j=0; j<5; j++){
-            for (int k=0; k<5; k++){
-                std::cout << std::setw(5) << t1.get(3, i,j,k) << " ";
-            }
-            std::cout << std::endl;
-        }
-        std::cout << std::endl;
-    }
-    std::cout << t1 << std::endl;
+    Tensor<float> * t4 = OPS::MULT<float> (t2, t3);
 
-    t1.as_contiguous();
-    std::cout << "Making contiguous" << std::endl;
+    t1->reshape(2, 5, 25);
+    t4->reshape(2, 5, 25);
 
-    t1._printInternalArr();
-    for(int i=0; i<5; i++) {
-        for(int j=0; j<5; j++){
-            for (int k=0; k<5; k++){
-                std::cout << std::setw(5) << t1.get(3, i,j,k) << " ";
-            }
-            std::cout << std::endl;
-        }
-        std::cout << std::endl;
-    }
-    std::cout << t1 << std::endl;
 
-    
+    t4->init_grad();
+    t4->getGrad()->setAll(1);
+    t4->getOp()->back();
+    t3->getOp()->back();
 
-    std::cout << "RESHAPE" << std::endl;
+    std::cout << "T1: " << std::endl;
+    std::cout << *t1 << std::endl;
+    std::cout << "============================\n============================\n" << std::endl;
+    std::cout << "T2: " << std::endl;
+    std::cout << *t2 << std::endl;
+    std::cout << "============================\n============================\n" << std::endl;
+    std::cout << "T3: " << std::endl;
+    std::cout << *t3 << std::endl;
+    std::cout << "============================\n============================\n" << std::endl;
+    std::cout << "T4: " << std::endl;
+    std::cout << *t4 << std::endl;
+    std::cout << "============================\n============================\n" << std::endl;
 
-    t1._printInternalArr();
-    int shape[2] = {5,25};
-    t1.reshape(2, shape);
-    for(int i=0; i<5; i++) {
-        for(int j=0; j<25; j++){
-                std::cout << std::setw(3) << t1.get(2, i,j) << " ";
-        }
-        std::cout << std::endl;
-    }
-    std::cout << t1 << std::endl;
 
-    std::cout << "RESHAPE 2" << std::endl;
-
-    t1._printInternalArr();
-    t1.reshape(3, 5,5,5);
-    for(int i=0; i<5; i++) {
-        for(int j=0; j<5; j++){
-            for (int k=0; k<5; k++){
-                std::cout << std::setw(5) << t1.get(3, i,j,k) << " ";
-            }
-            std::cout << std::endl;
-        }
-        std::cout << std::endl;
-    }
-
-    std::cout << t1 << std::endl;
-
-    t1.init_grad();
-
-    //Testin copy constructor and operator=
-    Tensor<int> t2(t1);
-    std::cout << t2 << std::endl;
-    Tensor<int> t3(3, 5,5,5);
-    t3 = t2;
-    std::cout << t3 << std::endl;
-
-    std::cout << "TESTING ADDITION" << std::endl;
-
-    Tensor<int> * out = OPS::ADD<int>(&t2, &t3);
-    out->getGrad()->setAll(1);
-    out->getOp()->back();
-
-    std::cout << *out << std::endl;
-    std::cout << t2 << std::endl;
-
-    delete out;
+    delete t1;
+    delete t2;
+    delete t3;
+    delete t4;
 }
