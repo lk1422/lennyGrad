@@ -1,6 +1,7 @@
 #include <iostream>
 #include <iomanip>
 #include "tensor.h"
+#include "ops.h"
 
 int main(){
 
@@ -89,4 +90,15 @@ int main(){
     Tensor<int> t3(3, 5,5,5);
     t3 = t2;
     std::cout << t3 << std::endl;
+
+    std::cout << "TESTING ADDITION" << std::endl;
+
+    Tensor<int> * out = OPS::ADD<int>(&t2, &t3);
+    out->getGrad()->setAll(1);
+    out->getOp()->back();
+
+    std::cout << *out << std::endl;
+    std::cout << t2 << std::endl;
+
+    delete out;
 }

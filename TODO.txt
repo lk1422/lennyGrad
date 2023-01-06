@@ -1,3 +1,5 @@
 TODO:
-    Finish Op Class
+    Create more OPS
+    Tensor Clean up of Comp Graph (Set of tensor pointers)
+
 

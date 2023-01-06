@@ -8,14 +8,14 @@
 #include <cassert>
 #include <utility>
 
-template <typename V> class Op;
+template <typename T> class Op;
 
 template <typename T>
 class Tensor {
     public:
         Tensor(int n_dims, ...);
-        Tensor(T * data, int n_dims, int * dims);
-        Tensor(int n_dims, int * dims);
+        Tensor(const T * data, int n_dims, const int * dims);
+        Tensor(int n_dims, const int * dims);
         ~Tensor();
 
         Tensor(const Tensor<T>& tensor);
@@ -223,6 +223,16 @@ class Tensor {
         ***************************************************************/
         void no_history() { track_history = false; }
 
+        /***************************************************************
+        * bool history()
+        *
+        *   Returns:
+        *       Returns the boolean flag representing whether
+        *       or not the tensors history should be tracked
+        *       (If it should be added to the comp graph)
+        ***************************************************************/
+        bool history() const { return track_history; }
+
 
         /***************************************************************
         * void reshape_grad(int n_dims, int * dims);
@@ -237,6 +247,48 @@ class Tensor {
         *       dimensions product (the total length of the internal array)
         ***************************************************************/
         void reshape_grad(int n_dims, int * dims);
+
+        /***************************************************************
+        * void setOP(Op * op);
+        *
+        *   Description:
+        *       Sets the operation which was performed
+        *       to create this tensor
+        ***************************************************************/
+        void setOP(Op<T> * op) {this->op=op;}
+
+        /***************************************************************
+        * void addChild(Tensor<T> * child);
+        *
+        *   Description:
+        *       appends child tensor to child vector
+        ***************************************************************/
+        void addChild(Tensor<T> * child) { children.push_back(child); }
+
+        /***************************************************************
+        * void addParent(Tensor<T> * par);
+        *
+        *   Description:
+        *       appends parent tensor to par vector
+        ***************************************************************/
+        void addParent(Tensor<T> * par) { parents.push_back(par); }
+
+        /***************************************************************
+        * void Tensor<T> * getGrad();
+        *
+        *   Description:
+        *       Returns a pointer to the tensors gradient
+        ***************************************************************/
+        Tensor<T> * getGrad() const { assert(grad_initialized); return grad; }
+
+        /***************************************************************
+        * Op<T> * getOp() const;
+        *
+        *   Description:
+        *       Returns a pointer to the operation which created
+        *       this tensor
+        ***************************************************************/
+        Op<T> * getOp() const { return op; }
 
         /*Debug Methods*/
         void _printInternalArr() const;
@@ -263,7 +315,7 @@ class Tensor {
 
         bool grad_initialized = false;
         Tensor<T> * grad;
-        Op<T> * op;
+        Op<T> * op = NULL;
 
         std::vector<Tensor*> children;
         std::vector<Tensor*> parents;
@@ -295,7 +347,7 @@ class iterator {
         *       Will return an Error if next() is called on a
         *       index out of bounds index.
         ***************************************************************/
-        T next();
+        T& next();
 
         /***************************************************************
         * void back();
@@ -306,7 +358,7 @@ class iterator {
         *       Will return an Error if next() is called on a
         *       index out of bounds index.
         ***************************************************************/
-        T back();
+        T& back();
     private:
         const Tensor<T> * tensor;
         int n_dims;
@@ -353,14 +405,14 @@ iterator<T>::iterator(const Tensor<T> * tensor, int * curr) {
 /*METHODS*/
 /*###############################################################################################################*/
 template <typename T>
-T iterator<T>::next() {
+T& iterator<T>::next() {
     /*
     Returns the current location in the iterator
     then increments the index by 1
     */
 
     //Get Value to return
-    T return_value = tensor->get(curr);
+    T& return_value = tensor->get(curr);
     //Increment iterator
 
     //If last element leave
@@ -384,12 +436,12 @@ T iterator<T>::next() {
 }
 /*###############################################################################################################*/
 template <typename T>
-T iterator<T>::back(){
+T& iterator<T>::back(){
     /*
     Returns the current location in the iterator
     then decrements the index by 1
     */
-    T return_value = tensor->get(curr);
+    T& return_value = tensor->get(curr);
     //Increment iterator
 
     //if first element leave
@@ -460,7 +512,7 @@ Tensor<T>::Tensor(int  n_dims, ...) {
 }
 /*###############################################################################################################*/
 template <typename T>
-Tensor<T>::Tensor(int n_dims, int * dims){
+Tensor<T>::Tensor(int n_dims, const int * dims){
     //Allocate the data
     //And copy dims
     int els = 1;
@@ -490,7 +542,7 @@ Tensor<T>::Tensor(int n_dims, int * dims){
 }
 /*###############################################################################################################*/
 template <typename T>
-Tensor<T>::Tensor(T * data, int n_dims, int * dims) {
+Tensor<T>::Tensor(const T * data, int n_dims, const int * dims) {
     //Allocate the data
     //And copy dims
     int els = 1;
@@ -604,6 +656,8 @@ Tensor<T>::~Tensor(){
     delete [] mults;
     delete [] dims;
     delete [] local_els;
+
+    if(op!=NULL) { delete op; }
     if (grad_initialized) delete grad;
 }
 
