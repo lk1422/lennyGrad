@@ -85,8 +85,8 @@ class _ADD: public Op<T>{
         //Actually using the add operation
         Tensor<T> * err_sig  = this->output->tensor->getGrad();
 
-        int arr[this->inputs[0]->tensor->getNDims()];
-        for(int i=0; i<this->inputs[0]->tensor->getNDims(); i++) arr[i] = 0;
+        int arr[this->inputs[0]->n_dims];
+        for(int i=0; i<this->inputs[0]->n_dims; i++) arr[i] = 0;
 
         for(int i=0; i < this->n_in; i++){
             int * shape = this->inputs[i]->shape;
