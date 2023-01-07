@@ -334,9 +334,13 @@ class Tensor {
 template <typename T>
 class iterator {
     public:
-        iterator(const Tensor<T> *  tensor, ...);
-        iterator(const Tensor<T> *  tensor, int * curr);
-        ~iterator(){ delete [] curr; }
+        iterator(const Tensor<T> *  tensor, int * order,  ...);
+        iterator(const Tensor<T> *  tensor, int * order, int * curr);
+        ~iterator(){ 
+            delete [] curr; 
+            delete [] dims;
+            delete [] order;
+            }
 
         /***************************************************************
         * void next();
@@ -361,18 +365,23 @@ class iterator {
         T& back();
 
         /***************************************************************
-        * std::pair<const int *, int> getCurr() const 
+        * std::pair<int *, int> getCurr() const 
         *
         *   Returns:
         *      Returns a pair of current index, and dimension of tensor
+        *      It will return the correct index not the internal index
+        *      the internal index has dimensions swapped around depending
+        *      on the traversal pattern specified.
+        *   Note: THE RETURNED POINTER MUST BE FREED
         ***************************************************************/
-        std::pair<const int *, int> getCurr() const { return std::make_pair(curr, n_dims); }
+        std::pair<int *, int> getCurr() const;
     private:
         const Tensor<T> * tensor;
         int n_dims;
         int * curr;
+        int * order;
         int curr_ind;
-        const int * dims;
+        int * dims;
         int n_els;
 };
 /*###############################################################################################################*/
@@ -381,14 +390,30 @@ class iterator {
 /*CONSTRUCTORS*/
 /*###############################################################################################################*/
 template <typename T>
-iterator<T>::iterator(const Tensor<T> * const tensor, ...) {
+iterator<T>::iterator(const Tensor<T> * const tensor, int * order,  ...) {
+    //Set order
+    this->order = new int[tensor->getNDims()];
+    if(order==NULL){
+        for(int i=0; i<tensor->getNDims(); i++) this->order[i] = i;
+    }else{
+        for(int i=0; i<tensor->getNDims(); i++) this->order[i] = order[i];
+    }
+    //Set dimensions according to the order
+    const int * temp = tensor->getDims();
+    this->dims = new int[tensor->getNDims()];
+
+    for(int i=0; i<tensor->getNDims(); i++) {
+        int index = this->order[i];
+        this->dims[i] = temp[index];
+    }
+
+    //Copy the rest of the values over
     this->tensor = tensor;
-    this->dims = tensor->getDims();
     n_dims = tensor->getNDims();
     n_els = tensor->getTotalElements();
     curr = new int[n_dims];
     va_list dims;
-    va_start(dims, tensor);
+    va_start(dims, order);
     for(int i=0; i<n_dims; i++) {
         curr[i] = va_arg(dims, int);
     }
@@ -398,9 +423,25 @@ iterator<T>::iterator(const Tensor<T> * const tensor, ...) {
 }
 /*###############################################################################################################*/
 template <typename T>
-iterator<T>::iterator(const Tensor<T> * tensor, int * curr) {
+iterator<T>::iterator(const Tensor<T> * tensor, int * order, int * curr) {
+    //Set order
+    this->order = new int[tensor->getNDims()];
+    if(order==NULL){
+        for(int i=0; i<tensor->getNDims(); i++) this->order[i] = i;
+    }else{
+        for(int i=0; i<tensor->getNDims(); i++) this->order[i] = order[i];
+    }
+    //Set dimensions according to the order
+    const int * temp = tensor->getDims();
+    this->dims = new int[tensor->getNDims()];
+
+    for(int i=0; i<tensor->getNDims(); i++) {
+        int index = this->order[i];
+        this->dims[i] = temp[index];
+    }
+
+    //Copy the rest of the values over
     this->tensor = tensor;
-    this->dims = tensor->getDims();
     n_els = tensor->getTotalElements();
     n_dims = tensor->getNDims();
     this->curr = new int[n_dims];
@@ -420,7 +461,10 @@ T& iterator<T>::next() {
     */
 
     //Get Value to return
-    T& return_value = tensor->get(curr);
+    //To do this we must swap some values around
+    int index[n_dims];
+    for(int i=0; i<n_dims; i++) index[i] = curr[order[i]];
+    T& return_value = tensor->get(index);
     //Increment iterator
 
     //If last element leave
@@ -449,7 +493,10 @@ T& iterator<T>::back(){
     Returns the current location in the iterator
     then decrements the index by 1
     */
-    T& return_value = tensor->get(curr);
+    //Get real index
+    int index[n_dims];
+    for(int i=0; i<n_dims; i++) index[i] = curr[order[i]];
+    T& return_value = tensor->get(index);
     //Increment iterator
 
     //if first element leave
@@ -472,6 +519,13 @@ T& iterator<T>::back(){
     curr[inc]--;
 
     return return_value;
+}
+/*###############################################################################################################*/
+template <typename T>
+std::pair<int *, int> iterator<T>::getCurr() const {
+    int * index = new int[n_dims];
+    for(int i=0; i<n_dims; i++) index[i] = curr[order[i]];
+    return std::make_pair(index, n_dims);
 }
 /*###############################################################################################################*/
 
@@ -724,7 +778,7 @@ std::ostream& operator<<(std::ostream& ostr, const Tensor<V> & tensor) {
     */
     int curr[tensor.getNDims()];
     for(int i=0; i<tensor.getNDims(); i++) curr[i] = 0;
-    iterator<V> it(&tensor, curr);
+    iterator<V> it(&tensor, NULL, curr);
     ostr << "DATA: " << std::endl;
     bool opened[tensor.n_dims];
     for(int i=0; i<tensor.n_dims; i++) opened[i] = false;
@@ -800,7 +854,7 @@ void Tensor<T>::as_contiguous() {
     //set up iterator for tensor
     int curr[n_dims];
     for(int i=0; i<n_dims; i++) curr[i] = 0;
-    iterator<T> it(this, curr);
+    iterator<T> it(this, NULL,  curr);
 
     //copy values over
     for(int i=0; i<n_els; i++){
@@ -843,7 +897,6 @@ void Tensor<T>::reshape(int n_dims, int * dims) {
         }
         total_els*=dims[i];
     }
-    std::cout << n_els << " " << total_els << std::endl;
     assert(n_els == total_els && "INVALID SHAPE CONVERSION");
 
     if(done) return;

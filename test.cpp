@@ -15,7 +15,7 @@ int main(){
 
     Tensor<float> * t4 = OPS::MULT<float> (t2, t3);
 
-    t1->reshape(2, 5, 25);
+    //t1->reshape(2, 5, 25);
     t4->reshape(2, 5, 25);
 
 
@@ -37,6 +37,12 @@ int main(){
     std::cout << *t4 << std::endl;
     std::cout << "============================\n============================\n" << std::endl;
 
+    std::cout << "TESTING ITERATORS" << std::endl;
+    int ord[] = {2 , 0 , 1};
+    iterator<float> it(t1, ord , 0, 0, 0);
+    for(int i=0; i<t1->getTotalElements(); i++){
+        std::cout << it.next() << std::endl;
+    }
 
     delete t1;
     delete t2;

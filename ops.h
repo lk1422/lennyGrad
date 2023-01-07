@@ -103,8 +103,8 @@ class _ADD: public Op<T>{
             //Match correctly
             this->inputs[i]->tensor->reshape_grad(n_dims, shape);
             //Add the gradients
-            iterator<T> it1(this->inputs[i]->tensor->getGrad() , arr);
-            iterator<T> it2(err_sig, arr);
+            iterator<T> it1(this->inputs[i]->tensor->getGrad() , NULL,  arr);
+            iterator<T> it2(err_sig, NULL,  arr);
             for(int i=0; i<this->inputs[0]->tensor->getTotalElements(); i++){
                 //dL/din = dL/dout * 1
                 it1.next()+=it2.next();
@@ -162,17 +162,20 @@ class _MULT: public Op<T> {
             this->inputs[i]->tensor->reshape_grad(n_dims, shape);
 
             //Set up iterators
-            iterator<T> it1(this->inputs[i]->tensor->getGrad() , arr);
-            iterator<T> it2(err_sig, arr);
+            iterator<T> it1(this->inputs[i]->tensor->getGrad() , NULL,  arr);
+            iterator<T> it2(err_sig, NULL,  arr);
             for(int j=0; j<this->inputs[0]->tensor->getTotalElements(); j++){
                 //Get the other tensor 
                 //Example: Y = WX (scalars), dY/dX = W, dY/dW = X
                 Tensor<T> * other_tensor = this->inputs[(i+1)%2]->tensor;
 
-                const int * curr = it1.getCurr().first;
+                //Must be paired with a delete
+                int * curr = it1.getCurr().first;
                 //Get the value to multiply by
                 T mult = other_tensor->get(curr);
                 it1.next() += (it2.next() * mult);
+
+                delete [] curr;
             }
         }
         //Reshape back to original shape
@@ -198,8 +201,8 @@ namespace OPS{
         T  new_data[input1->getTotalElements()];
         int arr[input1->getNDims()];
         for(int i=0; i<input1->getNDims(); i++) arr[i] = 0;
-        iterator<T> it1(input1, arr);
-        iterator<T> it2(input2, arr);
+        iterator<T> it1(input1, NULL,  arr);
+        iterator<T> it2(input2, NULL,  arr);
 
         for(int i=0; i<input1->getTotalElements(); i++){
             new_data[i] = it1.next() + it2.next();
@@ -224,8 +227,8 @@ namespace OPS{
         //Set up iterators
         int arr[input1->getNDims()];
         for(int i=0; i<input1->getNDims(); i++) arr[i] = 0;
-        iterator<T> it1(input1, arr);
-        iterator<T> it2(input2, arr);
+        iterator<T> it1(input1, NULL,  arr);
+        iterator<T> it2(input2, NULL, arr);
 
         //Multiply element wise
         for(int i=0; i<input1->getTotalElements(); i++){
