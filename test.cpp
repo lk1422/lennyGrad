@@ -5,6 +5,7 @@
 
 int main(){
 
+    /*
     float arr[125];
     int dims[] = {5, 5, 5};
     for(int i=0; i<125; i++) arr[i] = i+1;
@@ -48,4 +49,28 @@ int main(){
     delete t2;
     delete t3;
     delete t4;
+    */
+    int arr1[8];
+    for(int i=0; i<8; i++) arr1[i] = i+1;
+    int dims[] = {2, 2, 2};
+    Tensor<int> * t1 = new Tensor(arr1, 3, dims);
+
+    int arr2[12];
+    for(int i=0; i<6; i++) arr2[i] = (i+1) * 2;
+    for(int i=6; i<12; i++) arr2[i] = (i-6) * 2 + 1;
+    int dims2[] = {2, 2, 3};
+    Tensor<int> * t2 = new Tensor(arr2, 3, dims2);
+    t1->no_history();
+    t2->no_history();
+
+    std::cout << *t1 << std::endl;
+    std::cout << *t2 << std::endl;
+    
+
+    int ind1[] = {0,0,0};
+    int ind2[] = {0,0,0};
+    int out = OPS::_dot<int>(t1,t2,ind1,ind2);
+
+    std::cout << "OUTPUT: " << std::endl;
+    std::cout << out << std::endl;
 }

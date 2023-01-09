@@ -1,7 +1,9 @@
 TODO:
-    More Complicated iteration patters (n major traversal)
+    Implement internal dot prodcut 
+    Implement Tensor Splicing
+    Refactor dot product to use splicing
+    Create more OPS (MatMul)
     Add Documentation to explain the N major traversal code
-    Create more OPS
     Create Reshape Ops (transpose, permute)
     Create Reduction Ops (sum)
     Tensor Clean up of Comp Graph (Set of tensor pointers)

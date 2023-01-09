@@ -239,7 +239,57 @@ namespace OPS{
         out->setOP(dynamic_cast<Op<T>*>(add));
         return out;
     }
+    //OPS HELPERS
+    template <typename T>
+    T _dot(Tensor<T>* input1, Tensor<T> * input2, int * index1, int * index2) {
+        assert(input1->getDims()[input1->getNDims()-1] == input2->getDims()[input2->getNDims()-1]);
+        iterator<T> it1(input1, NULL, index1);
+        iterator<T> it2(input2, NULL, index2);
+        T accum = 0;
+        for(int i=0; i<input1->getDims()[input1->getNDims()-1]; i++){
+            accum+= (it1.next() * it2.next());
+        }
+        return accum;
+    }
 }
 
+/*
+        //Assert Before we implement broadcasting
+        int n_dims = input1->getNDims();
+        assert(n_dims >= 2);
+        assert(n_dims == input2->getNDims());
+        for(int i=0; i<n_dims-2; i++)
+            assert(input1->getDims()[i] == input2->getDims()[i]);
+        assert(input1->getDims()[n_dims-1] == input2->getDims()[n_dims-2]);
+
+        input2->transpose();
+        bool was_cont = input2->is_contiguous();
+        //Set up iterators
+        int start[n_dims];
+        for(int i=0; i < n_dims; i++) start[i] = 0;
+        int order[n_dims];
+        for(int i=0; i<n_dims; i++) order[i] = i+1;
+        order[n_dims-1]-=1;
+        order[n_dims-2] = 0;
+        start[n_dims-2] = index1;
+        iterator<T> it1(input1, order, start);
+        start[n_dims-2] = index2;
+        iterator<T> it2(input2, order, start);
+        int iters = input1->getTotalElements()/(input1->getDims()[n_dims-1] * input1->getDims()[n_dims-2]);
+        for(int i=0; i<iters; i++){
+            T accum = 0;
+            for(int j=0; j<input1->getDims()[n_dims-1]; j++){
+                T val1 = it1.next();
+                T val2 = it2.next();
+                std::cout << val1 << " " << val2 << std::endl;
+                accum +=  (val1 * val2);
+            }
+            std::cout << "________________" << std::endl;
+            result[i] = accum;
+        }
+        input2->transpose();
+        input2->set_contiguous(was_cont);
+    }
+    */
 
 #endif

@@ -148,6 +148,14 @@ class Tensor {
         void as_contiguous();
 
         /***************************************************************
+        * void set_contiguous(bool cont);
+        *
+        *   Description:
+        *       sets the contiguous flag to the value of cont
+        ***************************************************************/
+        void set_contiguous(bool cont) { contiguous=cont; }
+
+        /***************************************************************
         * void reshape(int dims, ...);
         *
         *   Description:
@@ -463,7 +471,10 @@ T& iterator<T>::next() {
     //Get Value to return
     //To do this we must swap some values around
     int index[n_dims];
-    for(int i=0; i<n_dims; i++) index[i] = curr[order[i]];
+    for(int i=0; i<n_dims; i++) {
+        index[i] = curr[order[i]];
+    }
+
     T& return_value = tensor->get(index);
     //Increment iterator
 
@@ -838,6 +849,9 @@ void Tensor<T>::transpose() {
     int temp = mults[n_dims-1];
     mults[n_dims-1] = mults[n_dims-2];
     mults[n_dims-2] = temp;
+    temp = dims[n_dims-1];
+    dims[n_dims-1] = dims[n_dims-2];
+    dims[n_dims-2] = temp;
     contiguous = false;
 }
 /*###############################################################################################################*/
