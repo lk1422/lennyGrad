@@ -108,6 +108,15 @@ class Tensor {
         const int * getDims() const { return dims; } 
 
         /***************************************************************
+        * const int * getLocalEls() const;
+        *
+        *   Returns:
+        *       A pointer to the array storing the total amount
+        *       of elements stored in that dimension of the data
+        ***************************************************************/
+        const int * getLocalEls() const { return local_els; }
+
+        /***************************************************************
         * int getNDims() const { return n_dims; }
         *
         *   Returns:
@@ -230,6 +239,16 @@ class Tensor {
         *       Computational Graph
         ***************************************************************/
         void no_history() { track_history = false; }
+
+        /***************************************************************
+        * void no_history()
+        *
+        *   Description:
+        *       Sets the track_history() flag to true
+        *       This means it will be included in the
+        *       Computational Graph
+        ***************************************************************/
+        void track_history() { track_history = true; }
 
         /***************************************************************
         * bool history()
@@ -373,16 +392,14 @@ class iterator {
         T& back();
 
         /***************************************************************
-        * std::pair<int *, int> getCurr() const 
+        * void getCurr(int * curr) const;
         *
-        *   Returns:
-        *      Returns a pair of current index, and dimension of tensor
-        *      It will return the correct index not the internal index
-        *      the internal index has dimensions swapped around depending
-        *      on the traversal pattern specified.
-        *   Note: THE RETURNED POINTER MUST BE FREED
+        *   Description:
+        *       sets the elements of curr to the current index
+        *       curr must have the same elements as dimensions
+        *       of the tensor being iterated. 
         ***************************************************************/
-        std::pair<int *, int> getCurr() const;
+    void getCurr() const;
     private:
         const Tensor<T> * tensor;
         int n_dims;
@@ -533,10 +550,8 @@ T& iterator<T>::back(){
 }
 /*###############################################################################################################*/
 template <typename T>
-std::pair<int *, int> iterator<T>::getCurr() const {
-    int * index = new int[n_dims];
-    for(int i=0; i<n_dims; i++) index[i] = curr[order[i]];
-    return std::make_pair(index, n_dims);
+void iterator<T>::getCurr(int * curr) const {
+    for(int i=0; i<n_dims; i++) curr[i] = this->curr[order[i]];
 }
 /*###############################################################################################################*/
 
@@ -852,6 +867,9 @@ void Tensor<T>::transpose() {
     temp = dims[n_dims-1];
     dims[n_dims-1] = dims[n_dims-2];
     dims[n_dims-2] = temp;
+    temp = local_els[n_dims-1];
+    local_els[n_dims-1] = local_els[n_dims-2];
+    local_els[n_dims-2] = temp;
     contiguous = false;
 }
 /*###############################################################################################################*/

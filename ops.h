@@ -170,17 +170,53 @@ class _MULT: public Op<T> {
                 Tensor<T> * other_tensor = this->inputs[(i+1)%2]->tensor;
 
                 //Must be paired with a delete
-                int * curr = it1.getCurr().first;
+
+                it1.getCurr(arr);//Fix when implementing broadcasting
+
                 //Get the value to multiply by
-                T mult = other_tensor->get(curr);
+                T mult = other_tensor->get(arr);
                 it1.next() += (it2.next() * mult);
 
-                delete [] curr;
             }
         }
         //Reshape back to original shape
         this->inputs[0]->tensor->reshape(in1_dimc, in1_dims);
         this->inputs[1]->tensor->reshape(in2_dimc, in2_dims);
+    }
+};
+
+template <typename T>
+class _MatMul: public Op<T>{
+    public:
+    _MatMul(Tensor<T>*output, Tensor<T>* input1, Tensor<T>* input2): Op<T>(output, 2, input1, input2) {}
+
+    void back(){
+        assert(this->inputs[0]->tensor->history());
+        assert(this->inputs[1]->tensor->history());
+
+        //Get dL/dout
+        Tensor<T> * err_sig  = this->output->tensor->getGrad();
+
+        //Initialize and Set starting index
+        int arr[this->inputs[0]->n_dims];
+        for(int i=0; i<this->inputs[0]->n_dims; i++) arr[i] = 0;
+
+        //Compute Gradients for each input (2)
+        for(int i=0; i < this->n_in; i++){
+            int * shape = this->inputs[i]->shape;
+            int n_dims = this->inputs[i]->n_dims;
+
+            //Shape the gradient to the historical state so shapes
+            //Match correctly
+            this->inputs[i]->tensor->reshape_grad(n_dims, shape);
+            //Add the gradients
+            iterator<T> it1(this->inputs[i]->tensor->getGrad() , NULL,  arr);
+            iterator<T> it2(err_sig, NULL,  arr);
+            for(int i=0; i<this->inputs[0]->tensor->getTotalElements(); i++){
+                //dL/din = dL/dout * 1
+                it1.next()+=it2.next();
+            }
+        }
     }
 };
 
@@ -251,6 +287,51 @@ namespace OPS{
         }
         return accum;
     }
+    Tensor<T> _matmul(Tensor<T> * input1, Tensor<T> * input2) {
+        //Shapes must match except for the last 2 layers
+        assert(input1->getDims()[input1->getNDims()-1] == input2->getDims()[input2->getNDims()-1]);
+        assert(input1->getNDims() == input2->getNDims());
+
+        int arr[input1->getNDims()]:
+        for(int i=0; i<input1->getNDims()-1; i++) arr[i] = input1->getDims()[i];
+        arr[input1->getNDims()-1] = input2->getDims()[input1->getNDims()];
+
+        Tensor<T> * out = new Tensor<T>(input1->getNDims(), arr);
+        input2->no_history();
+        input2->transpose();
+        bool was_cont = input->contiguous();
+
+        //set up iterators
+        int order[input1->getNDims()];
+        for(int i=0; i<input1->getNDims()-1; i++) {
+            order[i] = i+1;
+            arr[i] = 0;
+        }
+        order[input1->getNDims()-1] = 0;
+        iterator<T> it1(input1, order, arr);
+        iterator<T> it2(input2, order, arr);
+        int loop_bound = input1->getTotalElements() / input1->getLocalEls()[input1->getNDims()-2];
+        int loop_bound2 = input2->getTotalElements() / input2->getLocalEls()[input2->getNDims()-2];
+
+        //Fix loop bounds
+        for(int i=0; i<loop_bound2; i++){
+            it2.getCurr(arr);
+            for(int j=0; j<loop_bound; j++){
+                it1.getCurr(order);
+                T element  = _dot(input1, input2, order, arr);
+                //Get index 
+                order[input1->getNDims()-1] = arr[input1->getNDims()-2];
+                out->get(order) = element;
+                it1.next();
+            }
+            it2.next();
+        }
+    }
+    input2->track_history();
+    input2->transpose();
+    input2->set_contiguous(was_cont);
+
+    return out:
 }
 
 /*
