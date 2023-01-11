@@ -190,34 +190,7 @@ class _MatMul: public Op<T>{
     public:
     _MatMul(Tensor<T>*output, Tensor<T>* input1, Tensor<T>* input2): Op<T>(output, 2, input1, input2) {}
 
-    void back(){
-        assert(this->inputs[0]->tensor->history());
-        assert(this->inputs[1]->tensor->history());
-
-        //Get dL/dout
-        Tensor<T> * err_sig  = this->output->tensor->getGrad();
-
-        //Initialize and Set starting index
-        int arr[this->inputs[0]->n_dims];
-        for(int i=0; i<this->inputs[0]->n_dims; i++) arr[i] = 0;
-
-        //Compute Gradients for each input (2)
-        for(int i=0; i < this->n_in; i++){
-            int * shape = this->inputs[i]->shape;
-            int n_dims = this->inputs[i]->n_dims;
-
-            //Shape the gradient to the historical state so shapes
-            //Match correctly
-            this->inputs[i]->tensor->reshape_grad(n_dims, shape);
-            //Add the gradients
-            iterator<T> it1(this->inputs[i]->tensor->getGrad() , NULL,  arr);
-            iterator<T> it2(err_sig, NULL,  arr);
-            for(int i=0; i<this->inputs[0]->tensor->getTotalElements(); i++){
-                //dL/din = dL/dout * 1
-                it1.next()+=it2.next();
-            }
-        }
-    }
+    void back(){}
 };
 
 namespace OPS{
