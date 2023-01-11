@@ -69,8 +69,42 @@ int main(){
 
     int ind1[] = {0,0,0};
     int ind2[] = {0,0,0};
-    int out = OPS::_dot<int>(t1,t2,ind1,ind2);
 
-    std::cout << "OUTPUT: " << std::endl;
+    t2->transpose();
+    int out = OPS::_dot<int>(t1,t2,ind1,ind2);
+    t2->transpose();
+
+    std::cout << "OUTPUT DOT: " << std::endl;
     std::cout << out << std::endl;
+
+    Tensor<int> * mat_out = OPS::_matmul<int>(t1,t2);
+    std::cout << "OUTPUT DOT: " << std::endl;
+    std::cout << *mat_out << std::endl;
+
+    delete t1;
+    delete t2;
+    delete mat_out;
+
+
+    std::cout << "NEW TEST: " << std::endl;
+
+    int dims1_[] = {3, 2, 3};
+    int dims2_[] = {3, 3, 2};
+
+    int values1[] =  {15, 45, 18, 12, 3, 81, 94, 50, 2, 21, 76, 11, 113, 49, 97, 30, 6, 9};
+    int values2[] =  {11, 14, 4, 9, 6, 54, 33, 2, 76, 19, 44, 97, 69, 21, 32, 53, 16, 37};
+    Tensor<int> * test1 = new Tensor(values1, 3, dims1_);
+    Tensor<int> * test2 = new Tensor(values2, 3, dims2_);
+
+    std::cout << *test1 << std::endl;
+    std::cout << *test2 << std::endl;
+
+    Tensor<int> * mat_out2 = OPS::_matmul<int>(test1, test2);
+    std::cout << "OUTPUT DOT: " << std::endl;
+    std::cout << *mat_out2 << std::endl;
+
+    delete test1;
+    delete test2;
+    delete mat_out2;
+    
 }

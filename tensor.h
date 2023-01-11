@@ -241,14 +241,14 @@ class Tensor {
         void no_history() { track_history = false; }
 
         /***************************************************************
-        * void no_history()
+        * void use_history()
         *
         *   Description:
-        *       Sets the track_history() flag to true
+        *       Sets the use_history() flag to true
         *       This means it will be included in the
         *       Computational Graph
         ***************************************************************/
-        void track_history() { track_history = true; }
+        void use_history() { track_history = true; }
 
         /***************************************************************
         * bool history()
@@ -367,7 +367,7 @@ class iterator {
             delete [] curr; 
             delete [] dims;
             delete [] order;
-            }
+        }
 
         /***************************************************************
         * void next();
@@ -399,7 +399,16 @@ class iterator {
         *       curr must have the same elements as dimensions
         *       of the tensor being iterated. 
         ***************************************************************/
-    void getCurr() const;
+        void getCurr(int * curr) const;
+
+        /***************************************************************
+        * void setCurr(int * curr) const;
+        *
+        *   Description:
+        *       sets the current index of the iterator to curr
+        ***************************************************************/
+        void setCurr(int * dims);
+
     private:
         const Tensor<T> * tensor;
         int n_dims;
@@ -428,8 +437,8 @@ iterator<T>::iterator(const Tensor<T> * const tensor, int * order,  ...) {
     this->dims = new int[tensor->getNDims()];
 
     for(int i=0; i<tensor->getNDims(); i++) {
-        int index = this->order[i];
-        this->dims[i] = temp[index];
+        //int index = this->order[i];
+        this->dims[this->order[i]] = temp[i];
     }
 
     //Copy the rest of the values over
@@ -440,7 +449,7 @@ iterator<T>::iterator(const Tensor<T> * const tensor, int * order,  ...) {
     va_list dims;
     va_start(dims, order);
     for(int i=0; i<n_dims; i++) {
-        curr[i] = va_arg(dims, int);
+        this->curr[this->order[i]] = va_arg(dims, int);
     }
     curr_ind = tensor->getIndex(curr);
 
@@ -461,8 +470,8 @@ iterator<T>::iterator(const Tensor<T> * tensor, int * order, int * curr) {
     this->dims = new int[tensor->getNDims()];
 
     for(int i=0; i<tensor->getNDims(); i++) {
-        int index = this->order[i];
-        this->dims[i] = temp[index];
+        //int index = this->order[i];
+        this->dims[this->order[i]] = temp[i];
     }
 
     //Copy the rest of the values over
@@ -472,11 +481,16 @@ iterator<T>::iterator(const Tensor<T> * tensor, int * order, int * curr) {
     this->curr = new int[n_dims];
     curr_ind = tensor->getIndex(curr);
     for(int i=0; i<n_dims; i++) {
-        this->curr[i] = curr[i];
+        this->curr[this->order[i]] = curr[i];
     }
 }
 /*###############################################################################################################*/
 /*METHODS*/
+/*###############################################################################################################*/
+template <typename T>
+void iterator<T>::setCurr(int * arr) {
+    for(int i=0; i<n_dims; i++) curr[order[i]] = arr[i];
+}
 /*###############################################################################################################*/
 template <typename T>
 T& iterator<T>::next() {
@@ -487,30 +501,32 @@ T& iterator<T>::next() {
 
     //Get Value to return
     //To do this we must swap some values around
+    if(curr_ind >= n_els || curr_ind < 0){
+        std::cerr << "OUT OF BOUNDS: Index =" << curr_ind << " Num Elements = " << n_els << std::endl;
+        assert(false && "OUT OF BOUNDS");
+    }
+
     int index[n_dims];
     for(int i=0; i<n_dims; i++) {
         index[i] = curr[order[i]];
     }
 
     T& return_value = tensor->get(index);
-    //Increment iterator
 
-    //If last element leave
-    if(curr_ind == n_els-1) {
+    if(curr_ind == n_els-1) {//If last element leave
         curr_ind++;
         return return_value;
     }
-    if(curr_ind >= n_els || curr_ind < 0){
-        assert(false && "OUT OF BOUNDS");
-    }
+    //Increment iterator
     int inc = n_dims - 1;
-    curr_ind++;
     while( (curr[inc] + 1) >= dims[inc] ){
         assert(inc >= 0 && "ERROR GETTTING NEXT");
         curr[inc] = 0;
         inc--;
     }
     curr[inc]++;
+    curr_ind = tensor->getIndex(curr);
+
 
     return return_value;
 }
@@ -522,19 +538,18 @@ T& iterator<T>::back(){
     then decrements the index by 1
     */
     //Get real index
+    if(curr_ind >= n_els || curr_ind < 0){
+        assert(false && "OUT OF BOUNDS");
+    }
+
     int index[n_dims];
     for(int i=0; i<n_dims; i++) index[i] = curr[order[i]];
     T& return_value = tensor->get(index);
     //Increment iterator
 
-    //if first element leave
-    if(curr_ind == 0) {
-        curr_ind--;
+    if(curr_ind == n_els-1) {//If last element leave
+        curr_ind++;
         return return_value;
-    }
-
-    if(curr_ind >= n_els || curr_ind < 0){
-        assert(false && "OUT OF BOUNDS");
     }
 
     int inc = n_dims-1;
@@ -545,6 +560,7 @@ T& iterator<T>::back(){
         inc--;
     }
     curr[inc]--;
+    curr_ind = tensor->getIndex(curr);
 
     return return_value;
 }
@@ -622,6 +638,7 @@ Tensor<T>::Tensor(int n_dims, const int * dims){
         mult *=dims[i];
         local_els[i] = mult;
     }
+    n_els = mult;
 
     //Default values
     children = std::vector<Tensor*>();
@@ -656,6 +673,7 @@ Tensor<T>::Tensor(const T * data, int n_dims, const int * dims) {
         mult *=dims[i];
         local_els[i] = mult;
     }
+    n_els = mult;
 
     //Default values
     children = std::vector<Tensor*>();
@@ -778,6 +796,7 @@ T& Tensor<T>::get(const int * dims) const {
     for(int i=0; i<n_dims; i++) {
         int sub_index = dims[i];
         index += mults[i] * sub_index;
+        assert(dims[i] < this->dims[i] && "OUT OF BOUNDS ERROR");
     }
     assert(index < n_els && "OUT OF BOUNDS ERROR");
     return data[index];
@@ -830,14 +849,14 @@ std::ostream& operator<<(std::ostream& ostr, const Tensor<V> & tensor) {
         if(newline) ostr << "\n";
 
     }
-    std::cout << "METADATA: " << std::endl;
-    std::cout << "OFFSETS: ";
-    for(int i=0; i<tensor.getNDims(); i++) std::cout << tensor.getMults()[i] << " ";
-    std::cout << std::endl;
-    std::cout << "DIMS: ";
-    for(int i=0; i<tensor.getNDims(); i++) std::cout << tensor.getDims()[i] << " ";
-    std::cout << std::endl;
-    std::cout << "CONTIGUOUS: " << (tensor.is_contiguous() ? "TRUE" : "FALSE") << std::endl;
+    ostr << "METADATA: " << std::endl;
+    ostr << "OFFSETS: ";
+    for(int i=0; i<tensor.getNDims(); i++) ostr << tensor.getMults()[i] << " ";
+    ostr << std::endl;
+    ostr << "DIMS: ";
+    for(int i=0; i<tensor.getNDims(); i++) ostr << tensor.getDims()[i] << " ";
+    ostr << std::endl;
+    ostr << "CONTIGUOUS: " << (tensor.is_contiguous() ? "TRUE" : "FALSE") << std::endl;
 
     ostr << "CHILDREN: " << tensor.children.size() << "\n";
     ostr << "PARENTS: " << tensor.parents.size() << "\n";

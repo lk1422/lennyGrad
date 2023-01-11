@@ -252,98 +252,88 @@ namespace OPS{
     template <typename T>
     T _dot(Tensor<T>* input1, Tensor<T> * input2, int * index1, int * index2) {
         assert(input1->getDims()[input1->getNDims()-1] == input2->getDims()[input2->getNDims()-1]);
+
+
         iterator<T> it1(input1, NULL, index1);
         iterator<T> it2(input2, NULL, index2);
         T accum = 0;
+
         for(int i=0; i<input1->getDims()[input1->getNDims()-1]; i++){
-            accum+= (it1.next() * it2.next());
+            accum += (it1.next() * it2.next());
         }
         return accum;
     }
-    Tensor<T> _matmul(Tensor<T> * input1, Tensor<T> * input2) {
+    template <typename T>
+    Tensor<T> * _matmul(Tensor<T> * input1, Tensor<T> * input2) {
         //Shapes must match except for the last 2 layers
-        assert(input1->getDims()[input1->getNDims()-1] == input2->getDims()[input2->getNDims()-1]);
+        assert(input1->getDims()[input1->getNDims()-1] == input2->getDims()[input2->getNDims()-2]);
         assert(input1->getNDims() == input2->getNDims());
 
-        int arr[input1->getNDims()]:
+        //Initialize out tensor
+        int arr[input1->getNDims()];
         for(int i=0; i<input1->getNDims()-1; i++) arr[i] = input1->getDims()[i];
-        arr[input1->getNDims()-1] = input2->getDims()[input1->getNDims()];
-
+        arr[input1->getNDims()-1] = input2->getDims()[input2->getNDims()-1];
         Tensor<T> * out = new Tensor<T>(input1->getNDims(), arr);
+        out->no_history();
+
+        //set up input2 for the dot product
         input2->no_history();
         input2->transpose();
-        bool was_cont = input->contiguous();
+        bool was_cont = input2->is_contiguous();
 
-        //set up iterators
+        //set up iterators 1 & 2
         int order[input1->getNDims()];
-        for(int i=0; i<input1->getNDims()-1; i++) {
+        for(int i=0; i<input1->getNDims(); i++) {
             order[i] = i+1;
             arr[i] = 0;
         }
         order[input1->getNDims()-1] = 0;
+
         iterator<T> it1(input1, order, arr);
         iterator<T> it2(input2, order, arr);
-        int loop_bound = input1->getTotalElements() / input1->getLocalEls()[input1->getNDims()-2];
-        int loop_bound2 = input2->getTotalElements() / input2->getLocalEls()[input2->getNDims()-2];
 
-        //Fix loop bounds
-        for(int i=0; i<loop_bound2; i++){
-            it2.getCurr(arr);
-            for(int j=0; j<loop_bound; j++){
-                it1.getCurr(order);
-                T element  = _dot(input1, input2, order, arr);
-                //Get index 
-                order[input1->getNDims()-1] = arr[input1->getNDims()-2];
-                out->get(order) = element;
-                it1.next();
+        //set up iterator 3
+        for(int i=0; i<input1->getNDims(); i++) order[i] = i + 2;
+        order[input1->getNDims()-1] = 1;
+        order[input1->getNDims()-2] = 0;
+        iterator<T> it3(input1, order, arr);
+
+        int divisor = input2->getDims()[input2->getNDims()-2]  * input2->getDims()[input2->getNDims()-1];   
+        int loop_bound =  input2->getTotalElements() / divisor;
+        int loop_bound1 = input2->getDims()[input2->getNDims()-2];
+        int loop_bound2 = input1->getDims()[input1->getNDims()-2];
+
+        //Multiply Tensors
+        for(int _=0; _<loop_bound; _++){
+            for(int i=0; i<loop_bound1; i++){
+                //Store it2 current index in arr
+                it2.getCurr(arr);
+                for(int j=0; j<loop_bound2; j++){
+
+                    it1.getCurr(order);
+                    T element  = _dot(input1, input2, order, arr);
+
+                    order[input1->getNDims()-1] = arr[input1->getNDims()-2];
+
+                    out->get(order) = element;
+                    it1.next();
+                }
+                it2.next();
+                it3.getCurr(order);
+                it1.setCurr(order);
             }
-            it2.next();
+            it3.next();
+            it3.getCurr(order);
+            it1.setCurr(order);
         }
-    }
-    input2->track_history();
-    input2->transpose();
-    input2->set_contiguous(was_cont);
+        //set input2 back to its orignal state
+        input2->transpose();
+        input2->use_history();
+        input2->set_contiguous(was_cont);
 
-    return out:
+        return out;
+    }
 }
 
-/*
-        //Assert Before we implement broadcasting
-        int n_dims = input1->getNDims();
-        assert(n_dims >= 2);
-        assert(n_dims == input2->getNDims());
-        for(int i=0; i<n_dims-2; i++)
-            assert(input1->getDims()[i] == input2->getDims()[i]);
-        assert(input1->getDims()[n_dims-1] == input2->getDims()[n_dims-2]);
-
-        input2->transpose();
-        bool was_cont = input2->is_contiguous();
-        //Set up iterators
-        int start[n_dims];
-        for(int i=0; i < n_dims; i++) start[i] = 0;
-        int order[n_dims];
-        for(int i=0; i<n_dims; i++) order[i] = i+1;
-        order[n_dims-1]-=1;
-        order[n_dims-2] = 0;
-        start[n_dims-2] = index1;
-        iterator<T> it1(input1, order, start);
-        start[n_dims-2] = index2;
-        iterator<T> it2(input2, order, start);
-        int iters = input1->getTotalElements()/(input1->getDims()[n_dims-1] * input1->getDims()[n_dims-2]);
-        for(int i=0; i<iters; i++){
-            T accum = 0;
-            for(int j=0; j<input1->getDims()[n_dims-1]; j++){
-                T val1 = it1.next();
-                T val2 = it2.next();
-                std::cout << val1 << " " << val2 << std::endl;
-                accum +=  (val1 * val2);
-            }
-            std::cout << "________________" << std::endl;
-            result[i] = accum;
-        }
-        input2->transpose();
-        input2->set_contiguous(was_cont);
-    }
-    */
 
 #endif
