@@ -4,6 +4,17 @@
 #include <iostream>
 #include "tensor.h"
 
+/*
+FORWARD DECLARATIONS
+*/
+namespace OPS{
+    template <typename T>
+    Tensor<T> * _matmul(Tensor<T> * input1, Tensor<T> * input2);
+
+    template <typename T>
+    void inplace_add(Tensor<T> * input1, Tensor<T> * input2);
+}
+
 template <typename T>
 struct TensorHistory{
     /*
@@ -75,9 +86,11 @@ Op<T>::~Op() {
     delete [] inputs;
     delete  output;
 }
+
 /********************************************************************************************/
 /*                                          INDIVIAUAL OPS                                  */
 /********************************************************************************************/
+
 template <typename T>
 class _ADD: public Op<T>{
     public:
@@ -190,64 +203,80 @@ class _MatMul: public Op<T>{
     public:
     _MatMul(Tensor<T>*output, Tensor<T>* input1, Tensor<T>* input2): Op<T>(output, 2, input1, input2) {}
 
-    void back(){}
+    void back(){
+        Tensor<T> * err_sig  = this->output->tensor->getGrad();
+        
+
+        /*Save original shape:
+        *We must save the shape because in order to compute
+        *The gradient the tensor must be reshaped to its historical
+        *Shape */
+
+        int in1_dims[this->inputs[0]->tensor->getNDims()];
+        int in1_dimc = this->inputs[0]->tensor->getNDims();
+        //Copy the values over so when we call reshape they dont
+        //Change because we only have a pointer to the shape
+        for(int i=0; i<in1_dimc; i++) 
+            in1_dims[i] = this->inputs[0]->tensor->getDims()[i];
+
+        int in2_dims[this->inputs[1]->tensor->getNDims()];
+        int in2_dimc = this->inputs[1]->tensor->getNDims();
+        //Copy the values over so when we call reshape they dont
+        //Change because we only have a pointer to the shape
+        for(int i=0; i<in2_dimc; i++) 
+            in2_dims[i] = this->inputs[1]->tensor->getDims()[i];
+
+        //Reshape to the historical shape
+        //Note: reshape checks the current shape
+        //      if they match it will just return
+        this->inputs[0]->tensor->reshape(this->inputs[0]->n_dims, this->inputs[0]->shape);
+        this->inputs[1]->tensor->reshape(this->inputs[1]->n_dims, this->inputs[1]->shape);
+
+        //Get the historical shape to reshape the gradient
+        for(int i=0; i < this->n_in; i++){
+            int * shape = this->inputs[i]->shape;
+            int n_dims = this->inputs[i]->n_dims;
+            this->inputs[i]->tensor->reshape_grad(n_dims, shape);
+        }
+        //Compute Gradient
+        //dL/dX
+        this->inputs[1]->tensor->transpose();
+        bool was_cont = this->inputs[1]->tensor->is_contiguous();
+
+        Tensor<T> * dx = OPS::_matmul(err_sig, this->inputs[1]->tensor);
+        OPS::inplace_add(this->inputs[0]->tensor->getGrad(), dx);
+
+        this->inputs[1]->tensor->transpose();
+
+        this->inputs[1]->tensor->set_contiguous(was_cont);
+
+        //dL/dW
+        this->inputs[0]->tensor->transpose();
+        was_cont = this->inputs[0]->tensor->is_contiguous();
+
+        Tensor<T> * dw = OPS::_matmul(this->inputs[0]->tensor, err_sig);
+        OPS::inplace_add(this->inputs[1]->tensor->getGrad(), dw);
+
+        this->inputs[0]->tensor->transpose();
+        this->inputs[0]->tensor->set_contiguous(was_cont);
+
+        delete dx;
+        delete dw;
+
+        //Reshape back to original shape
+        this->inputs[0]->tensor->reshape(in1_dimc, in1_dims);
+        this->inputs[1]->tensor->reshape(in2_dimc, in2_dims);
+    }
 };
 
+//NAMESPACE WITH ALL THE FORWARD FACING OPS
+//AS WELL AS SOME HELPER OPS
 namespace OPS{
     /*
     Tensors created by the ops must manually be deleted
     Coming soon Tensor::deleteAll();
     */
-    template <typename T>
-    Tensor<T> * ADD(Tensor<T>* input1, Tensor<T> * input2) {
-        //Until broadcasting is implemented
-        //We also must garentee the tensors have the same shape
-        assert(input1->getTotalElements() == input2->getTotalElements());
-        assert(input1->getNDims() == input2->getNDims());
-        for(int i=0; i<0; i++) 
-            assert(input1->getDims()[i] == input2->getDims()[i]);
 
-        T  new_data[input1->getTotalElements()];
-        int arr[input1->getNDims()];
-        for(int i=0; i<input1->getNDims(); i++) arr[i] = 0;
-        iterator<T> it1(input1, NULL,  arr);
-        iterator<T> it2(input2, NULL,  arr);
-
-        for(int i=0; i<input1->getTotalElements(); i++){
-            new_data[i] = it1.next() + it2.next();
-        }
-        Tensor<T> * out = new Tensor<T>(new_data, input1->getNDims(), input1->getDims());
-        _ADD<T> * add = new _ADD<T>(out, input1, input2);
-        out->setOP(dynamic_cast<Op<T>*>(add));
-        return out;
-    }
-
-    template <typename T>
-    Tensor<T> * MULT(Tensor<T>* input1, Tensor<T> * input2) {
-        //Until broadcasting is implemented
-        //We also must garentee the tensors have the same shape
-        assert(input1->getNDims() == input2->getNDims());
-        for(int i=0; i<0; i++) 
-            assert(input1->getDims()[i] == input2->getDims()[i]);
-
-        //Allocate new Tensors data
-        T  new_data[input1->getTotalElements()];
-
-        //Set up iterators
-        int arr[input1->getNDims()];
-        for(int i=0; i<input1->getNDims(); i++) arr[i] = 0;
-        iterator<T> it1(input1, NULL,  arr);
-        iterator<T> it2(input2, NULL, arr);
-
-        //Multiply element wise
-        for(int i=0; i<input1->getTotalElements(); i++){
-            new_data[i] = it1.next() * it2.next();
-        }
-        Tensor<T> * out = new Tensor<T>(new_data, input1->getNDims(), input1->getDims());
-        _MULT<T> * add = new _MULT<T>(out, input1, input2);
-        out->setOP(dynamic_cast<Op<T>*>(add));
-        return out;
-    }
     //OPS HELPERS
     template <typename T>
     T _dot(Tensor<T>* input1, Tensor<T> * input2, int * index1, int * index2) {
@@ -277,7 +306,6 @@ namespace OPS{
         out->no_history();
 
         //set up input2 for the dot product
-        input2->no_history();
         input2->transpose();
         bool was_cont = input2->is_contiguous();
 
@@ -328,12 +356,97 @@ namespace OPS{
         }
         //set input2 back to its orignal state
         input2->transpose();
-        input2->use_history();
         input2->set_contiguous(was_cont);
 
         return out;
     }
+
+    template <typename T>
+    void inplace_add(Tensor<T> * input1, Tensor<T> * input2) {
+        //ADD INPLACE INTO input1
+        //assert same shape
+        assert(input1->getNDims() == input2->getNDims());
+        for(int i=0; i<input1->getNDims(); i++)
+            assert(input1->getDims()[i] == input2->getDims()[i]);
+
+        int arr[input1->getNDims()];
+        for(int i=0; i<input1->getNDims(); i++) arr[i] = 0;
+        iterator<T> it1(input1, NULL,  arr);
+        iterator<T> it2(input2, NULL, arr);
+        //add element wise
+        for(int i=0; i<input1->getTotalElements(); i++){
+            it1.next() += it2.next();
+        }
+    }
+
+    //FORWARD FACING OPS
+
+    template <typename T>
+    Tensor<T> * ADD(Tensor<T>* input1, Tensor<T> * input2) {
+        //Until broadcasting is implemented
+        //We also must garentee the tensors have the same shape
+        assert(input1->getTotalElements() == input2->getTotalElements());
+        assert(input1->getNDims() == input2->getNDims());
+        for(int i=0; i<input1->getNDims(); i++) 
+            assert(input1->getDims()[i] == input2->getDims()[i]);
+
+        T  new_data[input1->getTotalElements()];
+        int arr[input1->getNDims()];
+        for(int i=0; i<input1->getNDims(); i++) arr[i] = 0;
+        iterator<T> it1(input1, NULL,  arr);
+        iterator<T> it2(input2, NULL,  arr);
+
+        for(int i=0; i<input1->getTotalElements(); i++){
+            new_data[i] = it1.next() + it2.next();
+        }
+        Tensor<T> * out = new Tensor<T>(new_data, input1->getNDims(), input1->getDims());
+        _ADD<T> * add = new _ADD<T>(out, input1, input2);
+        out->setOP(dynamic_cast<Op<T>*>(add));
+        return out;
+    }
+
+    template <typename T>
+    Tensor<T> * MULT(Tensor<T>* input1, Tensor<T> * input2) {
+        //Until broadcasting is implemented
+        //We also must garentee the tensors have the same shape
+        assert(input1->getNDims() == input2->getNDims());
+        for(int i=0; i<input1->getNDims(); i++) 
+            assert(input1->getDims()[i] == input2->getDims()[i]);
+
+        //Allocate new Tensors data
+        T  new_data[input1->getTotalElements()];
+
+        //Set up iterators
+        int arr[input1->getNDims()];
+        for(int i=0; i<input1->getNDims(); i++) arr[i] = 0;
+        iterator<T> it1(input1, NULL,  arr);
+        iterator<T> it2(input2, NULL, arr);
+
+        //Multiply element wise
+        for(int i=0; i<input1->getTotalElements(); i++){
+            new_data[i] = it1.next() * it2.next();
+        }
+        Tensor<T> * out = new Tensor<T>(new_data, input1->getNDims(), input1->getDims());
+        _MULT<T> * add = new _MULT<T>(out, input1, input2);
+        out->setOP(dynamic_cast<Op<T>*>(add));
+        return out;
+    }
+
+    template <typename T>
+    Tensor<T> * MatMul(Tensor<T>* input1, Tensor<T> * input2) {
+        //Until broadcasting is implemented
+        //We also must garentee the tensors have the same shape
+        assert(input1->getNDims() == input2->getNDims());
+
+        Tensor<T> * out = _matmul(input1, input2);
+        out->use_history();
+        _MatMul<T> * matmul = new _MatMul<T>(out, input1, input2);
+        out->setOP(dynamic_cast<Op<T>*>(matmul));
+        return out;
+    }
+
 }
+
 
 
 #endif

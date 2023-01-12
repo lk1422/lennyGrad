@@ -60,32 +60,31 @@ int main(){
     for(int i=6; i<12; i++) arr2[i] = (i-6) * 2 + 1;
     int dims2[] = {2, 2, 3};
     Tensor<int> * t2 = new Tensor(arr2, 3, dims2);
-    t1->no_history();
-    t2->no_history();
 
     std::cout << *t1 << std::endl;
     std::cout << *t2 << std::endl;
     
 
-    int ind1[] = {0,0,0};
-    int ind2[] = {0,0,0};
+    Tensor<int> * mat_out = OPS::MatMul<int>(t1,t2);
 
-    t2->transpose();
-    int out = OPS::_dot<int>(t1,t2,ind1,ind2);
-    t2->transpose();
+    mat_out->getGrad()->setAll(1);
+    mat_out->getOp()->back();
 
     std::cout << "OUTPUT DOT: " << std::endl;
-    std::cout << out << std::endl;
 
-    Tensor<int> * mat_out = OPS::_matmul<int>(t1,t2);
-    std::cout << "OUTPUT DOT: " << std::endl;
     std::cout << *mat_out << std::endl;
+
+    std::cout << *t1 << std::endl;
+
+    std::cout << *t2 << std::endl;
+
 
     delete t1;
     delete t2;
     delete mat_out;
 
 
+    /*
     std::cout << "NEW TEST: " << std::endl;
 
     int dims1_[] = {3, 2, 3};
@@ -106,5 +105,6 @@ int main(){
     delete test1;
     delete test2;
     delete mat_out2;
+    */
     
 }

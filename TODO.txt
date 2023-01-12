@@ -1,9 +1,9 @@
 TODO:
-    Implement internal dot prodcut 
-    Implement Tensor Splicing
-    Refactor dot product to use splicing
-    Create more OPS (MatMul)
+    
+    Implement Gradient Checking for all ops
+    Test all current code, grad check all ops 
     Add Documentation to explain the N major traversal code
+    
     Create Reshape Ops (transpose, permute)
     Create Reduction Ops (sum)
     Tensor Clean up of Comp Graph (Set of tensor pointers)

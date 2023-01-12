@@ -863,8 +863,14 @@ std::ostream& operator<<(std::ostream& ostr, const Tensor<V> & tensor) {
 
 
     ostr << "GRADIENT: ";
-    if(tensor.is_grad_init())
+    if(tensor.is_grad_init()){
+        ostr << std::endl;
+        ostr << "===============================================" << std::endl;
+        ostr << "===============================================" << std::endl;
         ostr << *tensor.grad << std::endl;
+        ostr << "===============================================" << std::endl;
+        ostr << "===============================================" << std::endl;
+    }
     else
         ostr << "Not Initialized" << std::endl;
 
@@ -877,9 +883,9 @@ void Tensor<T>::transpose() {
     Preforms the transpose on the tensor
     if the tensor has n_dims >2
         -it will swap the last 2 dims
+    NOTE: THIS WILL THROW OFF THE SHAPE TRACKER, DONT USE UNLESS YOU INTEND TO CORRECT THIS ERRROR
     */
     assert(n_dims >= 2 && "MUST HAVE A SIZE OF AT LEAST 2 TO PREFORM A TRANSPOSE");
-    assert(!track_history && "USING THIS TRANSPOSE WILL RESULT IN ERRORS COMPUTING THE GRADIENT USE lg.Transpose(tensor)");
     int temp = mults[n_dims-1];
     mults[n_dims-1] = mults[n_dims-2];
     mults[n_dims-2] = temp;
