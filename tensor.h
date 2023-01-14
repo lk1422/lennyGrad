@@ -7,6 +7,7 @@
 #include <iomanip>
 #include <cassert>
 #include <utility>
+#include <random>
 
 template <typename T> class Op;
 
@@ -190,7 +191,7 @@ class Tensor {
         *       the product of all dimensions also must be equal to the previous
         *       dimensions product (the total length of the internal array)
         ***************************************************************/
-        void reshape(int n_dims, int * dims);
+        void reshape(int n_dims, const int * dims);
 
         /***************************************************************
         * void transpose();
@@ -273,7 +274,7 @@ class Tensor {
         *       the product of all dimensions also must be equal to the previous
         *       dimensions product (the total length of the internal array)
         ***************************************************************/
-        void reshape_grad(int n_dims, int * dims);
+        void reshape_grad(int n_dims,const int * dims);
 
         /***************************************************************
         * void setOP(Op * op);
@@ -316,6 +317,25 @@ class Tensor {
         *       this tensor
         ***************************************************************/
         Op<T> * getOp() const { return op; }
+
+        /***************************************************************
+        * T scalar() const;
+        *
+        *   Description:
+        *       Returns the scalar value of the function
+        *       IF it is a tensor with only one value
+        *       ELSE an error is thrown
+        ***************************************************************/
+        T scalar() const {assert(n_els==1); return data[0];}
+
+        /***************************************************************
+        * void randn();
+        *
+        *   Description:
+        *       Initializes the tensor to values in a normal
+        *       distribution with mean 0, and std 1.
+        ***************************************************************/
+        void randn();
 
         /*Debug Methods*/
         void _printInternalArr() const;
@@ -501,6 +521,8 @@ T& iterator<T>::next() {
 
     //Get Value to return
     //To do this we must swap some values around
+
+
     if(curr_ind >= n_els || curr_ind < 0){
         std::cerr << "OUT OF BOUNDS: Index =" << curr_ind << " Num Elements = " << n_els << std::endl;
         assert(false && "OUT OF BOUNDS");
@@ -513,10 +535,20 @@ T& iterator<T>::next() {
 
     T& return_value = tensor->get(index);
 
+    //std::cout << "CURRENT IND: " << tensor->getIndex(index) << std::endl;
     if(curr_ind == n_els-1) {//If last element leave
         curr_ind++;
         return return_value;
     }
+
+    /*
+    for(int i=0; i<n_dims; i++) std::cout << curr[order[i]] << " ";
+    std::cout << std::endl;
+
+    for(int i=0; i<n_dims; i++) std::cout << dims[order[i]] << " ";
+    std::cout << std::endl;
+    */
+
     //Increment iterator
     int inc = n_dims - 1;
     while( (curr[inc] + 1) >= dims[inc] ){
@@ -525,7 +557,11 @@ T& iterator<T>::next() {
         inc--;
     }
     curr[inc]++;
-    curr_ind = tensor->getIndex(curr);
+
+    for(int i=0; i<n_dims; i++) {
+        index[i] = curr[order[i]];
+    }
+    curr_ind = tensor->getIndex(index);
 
 
     return return_value;
@@ -597,7 +633,7 @@ Tensor<T>::Tensor(int  n_dims, ...) {
     //set the multipliers for each index
     int mult = 1;
     for(int i=n_dims-1; i>=0; i--) {
-        mults[i] = dims[i];
+        mults[i] = mult;
         mult *= dims[i];
         local_els[i] = mult;
     }
@@ -808,10 +844,8 @@ int Tensor<T>::getIndex(int * dims) const{
     Returns 1d data array index from the tensor index
     */
     int index = 0;
-    for(int i=0; i<n_dims; i++) {
-        int sub_index = dims[i];
-        index += mults[i] * sub_index;
-    }
+    for(int i=0; i<n_dims; i++) 
+        index += mults[i] * dims[i];
     return index;
 }
 /*###############################################################################################################*/
@@ -836,7 +870,7 @@ std::ostream& operator<<(std::ostream& ostr, const Tensor<V> & tensor) {
                 opened[j] = true;
             }
         }
-        ostr << std::setw(tensor.n_dims+3 - count) << std::setprecision(4) << it.next();
+        ostr << std::setw(tensor.n_dims+3 - count) << std::setprecision(2) << it.next();
 
         bool newline = false;
         for(int j=0; j<tensor.n_dims; j++){
@@ -865,11 +899,13 @@ std::ostream& operator<<(std::ostream& ostr, const Tensor<V> & tensor) {
     ostr << "GRADIENT: ";
     if(tensor.is_grad_init()){
         ostr << std::endl;
-        ostr << "===============================================" << std::endl;
-        ostr << "===============================================" << std::endl;
+        ostr << "===========================================" << std::endl;
+        ostr << "START OF GRADIENT" << std::endl;
+        ostr << "===========================================" << std::endl;
         ostr << *tensor.grad << std::endl;
-        ostr << "===============================================" << std::endl;
-        ostr << "===============================================" << std::endl;
+        ostr << "===========================================" << std::endl;
+        ostr << "END OF GRADIENT" << std::endl;
+        ostr << "===========================================" << std::endl;
     }
     else
         ostr << "Not Initialized" << std::endl;
@@ -941,7 +977,7 @@ void Tensor<T>::_printInternalArr() const {
 }
 /*###############################################################################################################*/
 template <typename T>
-void Tensor<T>::reshape(int n_dims, int * dims) {
+void Tensor<T>::reshape(int n_dims, const int * dims) {
     /*
     Reshapes the tensor to have the named dimensions
     */
@@ -950,7 +986,7 @@ void Tensor<T>::reshape(int n_dims, int * dims) {
     bool done = this->n_dims == n_dims;
     for(int i=0; i<n_dims; i++) {
         if(done){
-            done &= dims[i] == this->dims[i];
+            done &= (dims[i] == this->dims[i]);
         }
         total_els*=dims[i];
     }
@@ -1005,10 +1041,22 @@ void Tensor<T>::init_grad() {
 }
 /*###############################################################################################################*/
 template <typename T>
-void Tensor<T>::reshape_grad(int n_dims, int * dims){
+void Tensor<T>::reshape_grad(int n_dims, const int * dims){
     assert(grad_initialized && "GRAD NOT INITIALIZED");
+    int mult = 1;
+    for(int i=0; i<n_dims; i++) {
+        mult *= dims[i];
+    }
     grad->reshape(n_dims, dims);
 }
 /*###############################################################################################################*/
+template <typename T>
+void Tensor<T>::randn(){
+    std::default_random_engine generator;
+    std::normal_distribution<double> distribution(0,1);
+    for(int i=0; i<n_els; i++){
+        data[i] = distribution(generator);
+    }
+}
 
 #endif

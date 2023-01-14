@@ -37,6 +37,7 @@ struct TensorHistory{
     Tensor<T> * tensor;
 };
 
+
 template <typename T>
 class Op{
     public:
@@ -48,6 +49,7 @@ class Op{
         int n_in;
         TensorHistory<T> ** inputs;
         TensorHistory<T> * output;
+        bool history;
 };
 
 template <typename T>
@@ -66,6 +68,7 @@ Op<T>::Op(Tensor<T> * output, int n_in, ...) {
     bool track = true;
     for(int i=0; i<n_in; i++) track &= in[i]->history();
     if(track) output->init_grad();
+    this->history = track;
 
     //Initialize input tensor history 
     for(int i=0; i<n_in; i++) {
@@ -80,9 +83,12 @@ Op<T>::Op(Tensor<T> * output, int n_in, ...) {
 }
 template <typename T>
 Op<T>::~Op() {
-    for(int i=0; i<n_in; i++){
-        delete inputs[i];
+    if(history){
+        for(int i=0; i<n_in; i++){
+            delete inputs[i];
+        }
     }
+
     delete [] inputs;
     delete  output;
 }
@@ -132,7 +138,11 @@ class _MULT: public Op<T> {
     _MULT(Tensor<T>*output, Tensor<T>* input1, Tensor<T>* input2): Op<T>(output, 2, input1, input2) {}
 
     void back(){
+        assert(this->inputs[0]->tensor->getTotalElements() == this->inputs[1]->tensor->getTotalElements());
         assert(this->inputs[0]->tensor->history());
+        assert(this->inputs[0]->tensor->is_grad_init());
+        assert(this->inputs[1]->tensor->is_grad_init());
+        assert(this->inputs[1]->tensor->history());
         assert(this->inputs[1]->tensor->history());
 
         //Get dL/dout
@@ -166,7 +176,9 @@ class _MULT: public Op<T> {
 
         //Init and Set index to 0
         int arr[this->inputs[0]->n_dims];
-        for(int i=0; i<this->inputs[0]->n_dims; i++) arr[i] = 0;
+
+        int zeros[this->inputs[0]->n_dims];
+        for(int i=0; i<this->inputs[0]->n_dims; i++) zeros[i] = 0;
 
         for(int i=0; i < this->n_in; i++){
             //Get the historical shape to reshape the gradient
@@ -175,9 +187,9 @@ class _MULT: public Op<T> {
             this->inputs[i]->tensor->reshape_grad(n_dims, shape);
 
             //Set up iterators
-            iterator<T> it1(this->inputs[i]->tensor->getGrad() , NULL,  arr);
-            iterator<T> it2(err_sig, NULL,  arr);
-            for(int j=0; j<this->inputs[0]->tensor->getTotalElements(); j++){
+            iterator<T> it1(this->inputs[i]->tensor->getGrad() , NULL,  zeros);
+            iterator<T> it2(err_sig, NULL,  zeros);
+            for(int j=0; j<this->inputs[i]->tensor->getTotalElements(); j++){
                 //Get the other tensor 
                 //Example: Y = WX (scalars), dY/dX = W, dY/dW = X
                 Tensor<T> * other_tensor = this->inputs[(i+1)%2]->tensor;
@@ -188,7 +200,8 @@ class _MULT: public Op<T> {
 
                 //Get the value to multiply by
                 T mult = other_tensor->get(arr);
-                it1.next() += (it2.next() * mult);
+                T & res = it1.next();
+                res += it2.next() * mult;
 
             }
         }

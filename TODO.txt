@@ -1,5 +1,6 @@
 TODO:
     
+    Made reshape grad take in const int * , now it doesnt work
     Implement Gradient Checking for all ops
     Test all current code, grad check all ops 
     Add Documentation to explain the N major traversal code
