@@ -150,6 +150,12 @@ T& iterator<T>::next() {
     then increments the index by 1
     */
 
+    int index[n_dims];
+    for(int i=0; i<n_dims; i++) {
+        index[i] = curr[order[i]];
+    }
+    curr_ind = tensor->getIndex(index);
+
     if(curr_ind >= n_els || curr_ind < 0){
         std::cerr << "OUT OF BOUNDS: Index =" << curr_ind << " Num Elements = " << n_els << std::endl;
         assert(false && "OUT OF BOUNDS");
@@ -157,11 +163,6 @@ T& iterator<T>::next() {
 
     //Get Value to return
     //To do this we must swap some values around
-    int index[n_dims];
-    for(int i=0; i<n_dims; i++) {
-        index[i] = curr[order[i]];
-    }
-
     T& return_value = tensor->get(index);
 
     if(curr_ind == n_els-1) {//If last element leave
@@ -178,10 +179,6 @@ T& iterator<T>::next() {
     }
     curr[inc]++;
 
-    for(int i=0; i<n_dims; i++) {
-        index[i] = curr[order[i]];
-    }
-    curr_ind = tensor->getIndex(index);
 
 
     return return_value;

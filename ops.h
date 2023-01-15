@@ -246,6 +246,7 @@ namespace OPS{
         int loop_bound1 = input2->getDims()[input2->getNDims()-2];
         int loop_bound2 = input1->getDims()[input1->getNDims()-2];
 
+        int test[input1->getNDims()];
         //Multiply Tensors
         for(int _=0; _<loop_bound; _++){
             for(int i=0; i<loop_bound1; i++){
@@ -259,6 +260,7 @@ namespace OPS{
                     order[input1->getNDims()-1] = arr[input1->getNDims()-2];
 
                     out->get(order) = element;
+                    it1.getCurr(test);
                     it1.next();
                 }
                 it2.next();
