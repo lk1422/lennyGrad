@@ -81,6 +81,27 @@ void test_func(T func, const std::string & out_file, Tensor<double> ** tensors){
 
     std::cout << "PASSED: " << count << "/" << n_tensors << " Test Cases" << std::endl;
 }
+template <typename T>
+void testGrad(int tests,T func, bool matmul){
+    int count = 0;
+    for(int i=0; i<tests; i++){
+        Tensor<double> * tensor1 = new Tensor<double>(3,5,4,2);
+        Tensor<double> * tensor2;
+        if(!matmul)
+            tensor2 = new Tensor<double>(3,5,4,2);
+        else {
+            tensor2 = new Tensor<double>(3,5,2,4);
+        }
+        tensor1->randn();
+        tensor2->randn();
+        bool passed_test = grad_check(func, tensor1, tensor2);
+        if(passed_test) count++;
+        delete tensor1;
+        delete tensor2;
+    }
+    std::cout << "PASSED: " << count << "/" << tests << std::endl;
+}
+
 
 int main() {
     std::ifstream tensor_file;
@@ -110,51 +131,17 @@ int main() {
 
     std::cout << "===========================================================" << std::endl;
     std::cout << "TESTING ADD GRADIENTS" << std::endl;
-    int count = 0;
-    int total_tests = 500;
-    for(int i=0; i<total_tests; i++){
-        Tensor<double> * tensor1 = new Tensor<double>(3,2,2,2);
-        Tensor<double> * tensor2 = new Tensor<double>(3,2,2,2);
-        tensor1->randn();
-        tensor2->randn();
-        bool passed_test = grad_check(ADDITION_TEST<double>, tensor1, tensor2);
-        if(passed_test) count++;
-        delete tensor1;
-        delete tensor2;
-    }
-    std::cout << "PASSED: " << count << "/" << total_tests << std::endl;
+    testGrad(500, ADDITION_TEST<double>, false);
     std::cout << "===========================================================" << std::endl;
 
     std::cout << "===========================================================" << std::endl;
     std::cout << "TESTING MULT GRADIENTS" << std::endl;
-    count = 0;
-    for(int i=0; i<total_tests; i++){
-        Tensor<double> * tensor1 = new Tensor<double>(3,2,2,2);
-        Tensor<double> * tensor2 = new Tensor<double>(3,2,2,2);
-        tensor1->randn();
-        tensor2->randn();
-        bool passed_test = grad_check(MULT_TEST<double>, tensor1, tensor2);
-        if(passed_test) count++;
-        delete tensor1;
-        delete tensor2;
-    }
-    std::cout << "PASSED: " << count << "/" << total_tests << std::endl;
+    testGrad(500, MULT_TEST<double>, false);
     std::cout << "===========================================================" << std::endl;
 
     std::cout << "===========================================================" << std::endl;
     std::cout << "TESTING MATMULT GRADIENTS" << std::endl;
-    count = 0;
-    for(int i=0; i<total_tests; i++){
-        Tensor<double> * tensor1 = new Tensor<double>(3,2,2,3);
-        Tensor<double> * tensor2 = new Tensor<double>(3,2,3,2);
-        tensor1->randn();
-        tensor2->randn();
-        bool passed_test = grad_check(MATMUL_TEST<double>, tensor1, tensor2);
-        if(passed_test) count++;
-        delete tensor1;
-        delete tensor2;
-    }
-    std::cout << "PASSED: " << count << "/" << total_tests << std::endl;
+    testGrad(500, MATMUL_TEST<double>, true);
     std::cout << "===========================================================" << std::endl;
 }
 
