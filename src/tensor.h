@@ -12,6 +12,7 @@
 #include "iterator.h"
 
 
+std::default_random_engine generator;
 
 template <typename T> class Op;
 
@@ -808,7 +809,6 @@ void Tensor<T>::reshape_grad(int n_dims, const int * dims){
 /*###############################################################################################################*/
 template <typename T>
 void Tensor<T>::randn(){
-    std::default_random_engine generator;
     std::normal_distribution<double> distribution(0,1);
     for(int i=0; i<n_els; i++){
         data[i] = distribution(generator);

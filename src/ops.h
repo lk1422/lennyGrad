@@ -1,7 +1,9 @@
 #ifndef OPS_H_
 #define OPS_H_
 
+#include <algorithm>
 #include <iostream>
+#include <cmath>
 #include "tensor.h"
 #include "utils.h"
 
@@ -14,6 +16,15 @@ namespace OPS{
 
     template <typename T>
     void inplace_add(Tensor<T> * input1, Tensor<T> * input2);
+
+    template <typename T>
+    void inplace_mult(Tensor<T> * input1, Tensor<T> * input2);
+
+    template <typename T>
+    void inplace_mult_recip(Tensor<T> * input1, Tensor<T> * input2);
+
+    template <typename T>
+    void inplace_sub(Tensor<T> * input1, Tensor<T> * input2);
 }
 
 template <typename T>
@@ -98,6 +109,35 @@ class _ADD: public Op<T>{
     }
 };
 
+template <typename T>
+class _SUB: public Op<T>{
+    public:
+    _SUB(Tensor<T>*output, Tensor<T>* input1, Tensor<T>* input2): Op<T>(output, 2, input1, input2) {}
+
+    void back(){
+        assert(this->inputs[0]->history());
+        assert(this->inputs[1]->history());
+
+        //Get dL/dout
+        Tensor<T> * err_sig  = this->output->getGrad();
+
+        //Compute Gradients for each input (2)
+        for(int i=0; i < this->n_in; i++){
+            const int * shape = this->inputs[i]->getDims();
+            const int n_dims = this->inputs[i]->getNDims();
+
+            //Shape the gradient to the historical state so shapes
+            //Match correctly
+            this->inputs[i]->reshape_grad(n_dims, shape);
+        }
+        //Add the gradients
+        OPS::inplace_add(this->inputs[0]->getGrad(), err_sig);
+        //Sub the gradients
+        OPS::inplace_sub(this->inputs[1]->getGrad(), err_sig);
+    }
+};
+
+
 //Operator Descendent for element wise product
 template <typename T>
 class _MULT: public Op<T> {
@@ -105,10 +145,6 @@ class _MULT: public Op<T> {
     _MULT(Tensor<T>*output, Tensor<T>* input1, Tensor<T>* input2): Op<T>(output, 2, input1, input2) {}
 
     void back(){
-        assert(this->inputs[0]->getTotalElements() == this->inputs[1]->getTotalElements());
-        assert(this->inputs[0]->history());
-        assert(this->inputs[0]->is_grad_init());
-        assert(this->inputs[1]->is_grad_init());
         assert(this->inputs[1]->history());
         assert(this->inputs[1]->history());
 
@@ -126,24 +162,61 @@ class _MULT: public Op<T> {
             const int * shape = this->inputs[i]->getDims();
             const int n_dims = this->inputs[i]->getNDims();
             this->inputs[i]->reshape_grad(n_dims, shape);
+        }
 
-            //Set up iterators
-            iterator<T> it1(this->inputs[i]->getGrad() , NULL,  zeros);
-            iterator<T> it2(err_sig, NULL,  zeros);
-            for(int j=0; j<this->inputs[i]->getTotalElements(); j++){
-                //Get the other tensor 
-                //Example: Y = WX (scalars), dY/dX = W, dY/dW = X
-                Tensor<T> * other_tensor = this->inputs[(i+1)%2];
+        
+        Tensor<T> err_sig2(*err_sig);
+        OPS::inplace_mult(err_sig, this->inputs[1]);
+        OPS::inplace_add(this->inputs[0]->getGrad(), err_sig);
 
-                it1.getCurr(arr);//Fix when implementing broadcasting
+        OPS::inplace_mult(&err_sig2, this->inputs[0]);
+        OPS::inplace_add(this->inputs[1]->getGrad(), &err_sig2);
 
-                //Get the value to multiply by
-                T mult = other_tensor->get(arr);
-                it1.next() += it2.next() * mult;
-            }
+    }
+};
+
+template <typename T>
+class _DIV: public Op<T> {
+    public:
+    _DIV(Tensor<T>*output, Tensor<T>* input1, Tensor<T>* input2): Op<T>(output, 2, input1, input2) {}
+
+    void back(){
+        assert(this->inputs[1]->history());
+        assert(this->inputs[1]->history());
+
+        //Get dL/dout
+        Tensor<T> * err_sig  = this->output->getGrad();
+        
+        //Init and Set index to 0
+        int arr[this->inputs[0]->getNDims()];
+
+        int zeros[this->inputs[0]->getNDims()];
+        setAllElements(this->inputs[0]->getNDims(), zeros, 0);
+
+        for(int i=0; i < this->n_in; i++){
+            //Get the historical shape to reshape the gradient
+            const int * shape = this->inputs[i]->getDims();
+            const int n_dims = this->inputs[i]->getNDims();
+            this->inputs[i]->reshape_grad(n_dims, shape);
+        }
+
+        Tensor<T> err_sig2(*err_sig);
+        OPS::inplace_mult_recip(err_sig, this->inputs[1]);
+        OPS::inplace_add(this->inputs[0]->getGrad(), err_sig);
+
+        int index[this->inputs[1]->getNDims()];
+        setAllElements(this->inputs[1]->getNDims(), index, 0);
+        iterator it1(&err_sig2, NULL, index);
+        iterator it2(this->inputs[1]->getGrad(), NULL, index);
+        iterator it3(this->inputs[0], NULL, index);
+        iterator it4(this->inputs[1], NULL, index);
+        for(int i=0; i<err_sig2.getTotalElements(); i++){
+            T denom = it4.next();
+            it2.next() += (-it1.next()) * (it3.next()/(denom * denom));
         }
     }
 };
+
 
 //Operator Descendent for tensor product
 template <typename T>
@@ -183,6 +256,87 @@ class _MatMul: public Op<T>{
 
         delete dx;
         delete dw;
+    }
+};
+
+template <typename T>
+class _NEG: public Op<T>{
+    public:
+    _NEG(Tensor<T>*output, Tensor<T>* input): Op<T>(output, 1, input) {}
+
+    void back(){
+        assert(this->inputs[0]->history());
+
+        //Get dL/dout
+        Tensor<T> * err_sig  = this->output->getGrad();
+
+        //Compute Gradients for each input (2)
+        const int * shape = this->inputs[0]->getDims();
+        const int n_dims = this->inputs[0]->getNDims();
+
+        //Shape the gradient to the historical state so shapes
+        //Match correctly
+        this->inputs[0]->reshape_grad(n_dims, shape);
+
+        //Add the gradients
+        OPS::inplace_sub(this->inputs[0]->getGrad(), err_sig);
+    }
+};
+
+template <typename T>
+class _ReLU: public Op<T>{
+    public:
+    _ReLU(Tensor<T>*output, Tensor<T>* input): Op<T>(output, 1, input) {}
+
+    void back(){
+        assert(this->inputs[0]->history());
+
+        //Get dL/dout
+        Tensor<T> * err_sig  = this->output->getGrad();
+
+        //Compute Gradients for each input (2)
+        const int * shape = this->inputs[0]->getDims();
+        const int n_dims = this->inputs[0]->getNDims();
+
+        //Shape the gradient to the historical state so shapes
+        //Match correctly
+        this->inputs[0]->reshape_grad(n_dims, shape);
+
+        int index[this->inputs[0]->getNDims()];
+        setAllElements(this->inputs[0]->getNDims(), index, 0);
+
+        iterator it1(err_sig, NULL, index);
+        iterator it2(this->inputs[0], NULL, index);
+        iterator it3(this->inputs[0]->getGrad(), NULL, index);
+
+        for(int i=0; i<this->output->getTotalElements(); i++){
+            T next = it2.next();
+            it3.next() += (std::max(next, (T)0)/next) * it1.next();
+        }
+    }
+};
+
+template <typename T>
+class _EXP: public Op<T>{
+    public:
+    _EXP(Tensor<T>*output, Tensor<T>* input): Op<T>(output, 1, input) {}
+
+    void back(){
+        assert(this->inputs[0]->history());
+
+        //Get dL/dout
+        Tensor<T> * err_sig  = this->output->getGrad();
+
+        //Compute Gradients for each input (2)
+        const int * shape = this->inputs[0]->getDims();
+        const int n_dims = this->inputs[0]->getNDims();
+
+        //Shape the gradient to the historical state so shapes
+        //Match correctly
+        this->inputs[0]->reshape_grad(n_dims, shape);
+
+        OPS::inplace_mult(err_sig, this->output);
+        OPS::inplace_add(this->inputs[0]->getGrad(), err_sig);
     }
 };
 
@@ -279,6 +433,24 @@ namespace OPS{
     }
 
     template <typename T>
+    void inplace_sub(Tensor<T> * input1, Tensor<T> * input2) {
+        //ADD INPLACE INTO input1
+        //assert same shape
+        assert(input1->getNDims() == input2->getNDims());
+        for(int i=0; i<input1->getNDims(); i++)
+            assert(input1->getDims()[i] == input2->getDims()[i]);
+
+        int arr[input1->getNDims()];
+        setAllElements(input1->getNDims(), arr, 0);
+        iterator<T> it1(input1, NULL,  arr);
+        iterator<T> it2(input2, NULL, arr);
+        //sub element wise
+        for(int i=0; i<input1->getTotalElements(); i++){
+            it1.next() -= it2.next();
+        }
+    }
+
+    template <typename T>
     void inplace_add(Tensor<T> * input1, Tensor<T> * input2) {
         //ADD INPLACE INTO input1
         //assert same shape
@@ -287,7 +459,7 @@ namespace OPS{
             assert(input1->getDims()[i] == input2->getDims()[i]);
 
         int arr[input1->getNDims()];
-        for(int i=0; i<input1->getNDims(); i++) arr[i] = 0;
+        setAllElements(input1->getNDims(), arr, 0);
         iterator<T> it1(input1, NULL,  arr);
         iterator<T> it2(input2, NULL, arr);
         //add element wise
@@ -296,8 +468,46 @@ namespace OPS{
         }
     }
 
+    template <typename T>
+    void inplace_mult_recip(Tensor<T> * input1, Tensor<T> * input2) {
+        //ADD INPLACE INTO input1
+        //assert same shape
+        assert(input1->getNDims() == input2->getNDims());
+        for(int i=0; i<input1->getNDims(); i++)
+            assert(input1->getDims()[i] == input2->getDims()[i]);
+
+        int arr[input1->getNDims()];
+        setAllElements(input1->getNDims(), arr, 0);
+        iterator<T> it1(input1, NULL,  arr);
+        iterator<T> it2(input2, NULL, arr);
+        //mult element wise
+        for(int i=0; i<input1->getTotalElements(); i++){
+            it1.next() *= (1/it2.next());
+        }
+    }
+
+    template <typename T>
+    void inplace_mult(Tensor<T> * input1, Tensor<T> * input2) {
+        //ADD INPLACE INTO input1
+        //assert same shape
+        assert(input1->getNDims() == input2->getNDims());
+        for(int i=0; i<input1->getNDims(); i++)
+            assert(input1->getDims()[i] == input2->getDims()[i]);
+
+        int arr[input1->getNDims()];
+        setAllElements(input1->getNDims(), arr, 0);
+        iterator<T> it1(input1, NULL,  arr);
+        iterator<T> it2(input2, NULL, arr);
+        //mult element wise
+        for(int i=0; i<input1->getTotalElements(); i++){
+            it1.next() *= it2.next();
+        }
+    }
+
+
+
 /***************************
-*       OPERATIONS         * 
+*     BINARY OPERATIONS    * 
 ****************************/
 
     template <typename T>
@@ -321,6 +531,31 @@ namespace OPS{
         //Create out tensor
         Tensor<T> * out = new Tensor<T>(new_data, input1->getNDims(), input1->getDims());
         _ADD<T> * add = new _ADD<T>(out, input1, input2);
+        out->setOP(dynamic_cast<Op<T>*>(add));
+        return out;
+    }
+
+    template <typename T>
+    Tensor<T> * SUB(Tensor<T>* input1, Tensor<T> * input2) {
+        assert(input1->getTotalElements() == input2->getTotalElements());
+        assert(input1->getNDims() == input2->getNDims());
+        for(int i=0; i<input1->getNDims(); i++) 
+            assert(input1->getDims()[i] == input2->getDims()[i]);
+
+        //Set Up iterators
+        int arr[input1->getNDims()];
+        setAllElements(input1->getNDims(), arr, 0);
+        iterator<T> it1(input1, NULL,  arr);
+        iterator<T> it2(input2, NULL,  arr);
+
+        //Add data
+        T  new_data[input1->getTotalElements()];
+        for(int i=0; i<input1->getTotalElements(); i++){
+            new_data[i] = it1.next() - it2.next();
+        }
+        //Create out tensor
+        Tensor<T> * out = new Tensor<T>(new_data, input1->getNDims(), input1->getDims());
+        _SUB<T> * add = new _SUB<T>(out, input1, input2);
         out->setOP(dynamic_cast<Op<T>*>(add));
         return out;
     }
@@ -352,6 +587,32 @@ namespace OPS{
     }
 
     template <typename T>
+    Tensor<T> * DIV(Tensor<T>* input1, Tensor<T> * input2) {
+        assert(input1->getTotalElements() == input2->getTotalElements());
+        assert(input1->getNDims() == input2->getNDims());
+        for(int i=0; i<input1->getNDims(); i++) 
+            assert(input1->getDims()[i] == input2->getDims()[i]);
+
+        //Set Up iterators
+        int arr[input1->getNDims()];
+        setAllElements(input1->getNDims(), arr, 0);
+        iterator<T> it1(input1, NULL,  arr);
+        iterator<T> it2(input2, NULL,  arr);
+
+        //Add data
+        T  new_data[input1->getTotalElements()];
+        for(int i=0; i<input1->getTotalElements(); i++){
+            new_data[i] = it1.next() / it2.next();
+        }
+
+        //Create out tensor
+        Tensor<T> * out = new Tensor<T>(new_data, input1->getNDims(), input1->getDims());
+        _DIV<T> * div = new _DIV<T>(out, input1, input2);
+        out->setOP(dynamic_cast<Op<T>*>(div));
+        return out;
+    }
+
+    template <typename T>
     Tensor<T> * MatMul(Tensor<T>* input1, Tensor<T> * input2) {
         assert(input1->getNDims() == input2->getNDims());
 
@@ -362,6 +623,68 @@ namespace OPS{
         // Set up Out Tensor
         _MatMul<T> * matmul = new _MatMul<T>(out, input1, input2);
         out->setOP(dynamic_cast<Op<T>*>(matmul));
+        return out;
+    }
+
+/***************************
+*     UNARY OPERATIONS     * 
+****************************/
+    template <typename T>
+    Tensor<T> * NEG(Tensor<T>* input) {
+
+        int arr[input->getNDims()];
+        setAllElements(input->getNDims(), arr, 0);
+        iterator<T> it(input, NULL,  arr);
+
+        //Add data
+        T  new_data[input->getTotalElements()];
+        for(int i=0; i<input->getTotalElements(); i++){
+            new_data[i] = -it.next();
+        }
+        Tensor<T> * out = new Tensor<T>(new_data, input->getNDims(), input->getDims());
+
+        // Set up Out Tensor
+        _NEG<T> * neg = new _NEG<T>(out, input);
+        out->setOP(dynamic_cast<Op<T>*>(neg));
+        return out;
+    }
+    template <typename T>
+    Tensor<T> * ReLU(Tensor<T>* input) {
+
+        int arr[input->getNDims()];
+        setAllElements(input->getNDims(), arr, 0);
+        iterator<T> it(input, NULL,  arr);
+
+        //Add data
+        T  new_data[input->getTotalElements()];
+        for(int i=0; i<input->getTotalElements(); i++){
+            new_data[i] = std::max(0.0, (double)it.next());
+        }
+        Tensor<T> * out = new Tensor<T>(new_data, input->getNDims(), input->getDims());
+
+        // Set up Out Tensor
+        _ReLU<T> * rel = new _ReLU<T>(out, input);
+        out->setOP(dynamic_cast<Op<T>*>(rel));
+        return out;
+    }
+
+    template <typename T>
+    Tensor<T> * EXP(Tensor<T>* input) {
+
+        int arr[input->getNDims()];
+        setAllElements(input->getNDims(), arr, 0);
+        iterator<T> it(input, NULL,  arr);
+
+        //Add data
+        T  new_data[input->getTotalElements()];
+        for(int i=0; i<input->getTotalElements(); i++){
+            new_data[i]  = std::exp(it.next());
+        }
+        Tensor<T> * out = new Tensor<T>(new_data, input->getNDims(), input->getDims());
+
+        // Set up Out Tensor
+        _EXP<T> * exp = new _EXP<T>(out, input);
+        out->setOP(dynamic_cast<Op<T>*>(exp));
         return out;
     }
 }
