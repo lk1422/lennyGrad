@@ -1,6 +1,6 @@
 # lennyGrad
 
-Deep Learning Library Written in C++
+Deep Learning Library Written in C++ (WORK IN PROGRESS)
 
 This Repository will begin with a CPU DL library written in C++ which will include Tensor Class, AutoGrad System, Operations (including Conv), Optimizers, Loss Functions
 The first version of the library is not built with efficiency in mind, but rather as way to practice and understand Deep Learning algorithms further.
