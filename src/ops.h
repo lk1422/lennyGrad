@@ -340,6 +340,41 @@ class _EXP: public Op<T>{
     }
 };
 
+template <typename T>
+class _PAD: public Op<T>{
+    public:
+    _PAD(Tensor<T>*output, Tensor<T>* input): Op<T>(output, 1, input) {}
+
+    void back(){
+        assert(this->inputs[0]->history());
+
+        //Get dL/dout
+        Tensor<T> * err_sig  = this->output->getGrad();
+
+        //Compute Gradients for each input (2)
+        const int * shape = this->inputs[0]->getDims();
+        const int n_dims = this->inputs[0]->getNDims();
+
+        //Shape the gradient to the historical state so shapes
+        //Match correctly
+        this->inputs[0]->reshape_grad(n_dims, shape);
+
+        //compute padx, pady
+        int pady = (this->output->getDims()[this->output->getNDims()-1] - this->inputs[0]->getDims()[this->inputs[0]->getNDims()-1] )/2;
+        int padx = (this->output->getDims()[this->output->getNDims()-2] - this->inputs[0]->getDims()[this->inputs[0]->getNDims()-2] )/2;
+
+        //Copy gradients over
+        int index[this->inputs[0]->getNDims()];
+        setAllElements(this->inputs[0]->getNDims(), index, 0);
+        iterator it(this->inputs[0]->getGrad(), NULL, index);
+        for(int i=0; i<this->inputs[0]->getTotalElements(); i++){
+            it.getCurr(index);
+            index[this->inputs[0]->getNDims()-2] += padx;
+            index[this->inputs[0]->getNDims()-1] += pady;
+            it.next() += err_sig->get(index);
+        }
+    }
+};
 namespace OPS{
 
 /*
@@ -687,5 +722,79 @@ namespace OPS{
         out->setOP(dynamic_cast<Op<T>*>(exp));
         return out;
     }
+
+    template <typename T>
+    Tensor<T> * PAD(Tensor<T>* input, int padx=2, int pady=2, int pad_val = 0) {
+        assert(input->getNDims() >= 2);
+
+        std::pair<int,int> pad = std::make_pair(padx, pady);
+
+        //Get new shape
+        int dims[input->getNDims()];
+        copyElements(input->getNDims(), dims, input->getDims());
+        dims[input->getNDims()-2] += 2*pad.first;
+        dims[input->getNDims()-1] += 2*pad.second;
+        //Create out tensor
+        Tensor<T> * out = new Tensor<T>(input->getNDims(), dims);
+        out->setAll(pad_val);//0 pad
+        //Copy elements over
+        setAllElements(input->getNDims(), dims, 0);
+        iterator it(input, NULL, dims);
+        int index[input->getNDims()];
+        for(int i=0; i<input->getTotalElements(); i++){
+            it.getCurr(index);
+            index[input->getNDims()-2] += pad.first;
+            index[input->getNDims()-1] += pad.second;
+            out->get(index) = it.next();
+        }
+
+        // Set up Out Tensor
+        _PAD<T> * pad_ = new _PAD<T>(out, input);
+        out->setOP(dynamic_cast<Op<T>*>(pad_));
+        return out;
+    }
 }
+
+
+template <typename T>
+T convAt(Tensor<T> * X, Tensor<T> * K, std::pair<int,int> s, const int * AT){
+    assert(X->getNDims() == 4);
+    assert(K->getNDims() == 4);
+    //Allocate indexes
+
+    T accum = 0;
+    for(int l=0; l<X->getDims()[1]; l++){
+        for(int m=0; m<K->getDims()[2]; m++){
+            for(int n=0; n<K->getDims()[3]; n++){
+                int k_ind[] = {AT[1], l, m, n};
+                int x_ind[] = {AT[0], l, s.first*AT[2] +m, s.second*AT[3] + n};
+                accum += X->get(x_ind) * K->get(k_ind);
+            }
+        }
+    }
+    return accum;
+}
+
+template <typename T>
+Tensor<T> * conv(Tensor<T> * X, Tensor<T> * K, std::pair<int,int> s){
+    assert(X->getNDims() == 4);
+    assert(K->getNDims() == 4);
+    //Calculate out shape
+    int height = (X->getDims()[2] - K->getDims()[2] + 1)/s.first;
+    int width = (X->getDims()[3] - K->getDims()[3] + 1)/s.second;
+    Tensor<T>* out = new Tensor<T>(4, X->getDims()[0], K->getDims()[0], height, width);
+    for(int b=0; b<out->getDims()[0]; b++){
+        for(int i=0; i<out->getDims()[1]; i++){
+            for(int j=0; j<out->getDims()[2]; j++){
+                for(int k=0; k<out->getDims()[3]; k++){
+                    int index[] = {b, i, j, k};
+                    out->get(index) = convAt(X, K, s, index);
+                }
+            }
+        }
+    }
+    return out;
+}
+
+
 #endif

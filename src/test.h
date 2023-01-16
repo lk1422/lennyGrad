@@ -191,6 +191,7 @@ bool run_tests() {
     passed_tests &= test_func_unary(OPS::EXP<double>, std::string(PATH + "/testfiles/exp.txt"), tensors);
     passed_tests &= test_func(OPS::MatMul<double>, std::string(PATH + "/testfiles/matmul.txt"), m_tensors);
 
+    //Test Gradients
     int tests = 1000;
     std::cout << "===========================================================" << std::endl;
     std::cout << "TESTING ADD GRADIENTS" << std::endl;

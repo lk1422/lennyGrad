@@ -1,11 +1,8 @@
 TODO:
     
-    Create More OPS
-        -NEG
-        -SUB
-        -SIGMOID
-        -RELU
-        -SOFTMAX
+    Finish With Conv op
+    Write Grad Checking for OPS that have hyper params
+    
     Create Reshape Ops (transpose, permute)
     Create Reduction Ops (sum)
     Tensor Clean up of Comp Graph (Set of tensor pointers)

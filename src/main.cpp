@@ -17,21 +17,37 @@ int main(){
             exit(-1);
         }
     }
-    // Tensor<double> * t = new Tensor<double>(3, 2,2,2);
-    // t->randn();
-    // std::cout << *t << std::endl;
-    // Tensor<double> * t_ = OPS::ReLU(t);
-    // t_->init_grad();
-    // t_->getGrad()->setAll(1);
-    // t_->getOp()->back();
 
+    // Tensor<double> * X = new Tensor<double>(2, 5,5);
+    // X->randn();
+    // Tensor<double> * out = OPS::PAD<double>(X);
+    // out->getGrad()->setAll(1);
+    // out->getOp()->back();
 
-    // std::cout << *t << std::endl;
-    // std::cout << *t_ << std::endl;
-
-
-    // delete t;
-    // delete t_;
-
+    // std::cout << *X << std::endl;
+    // std::cout << *out << std::endl;
+    
+    // delete out;
     return 0;
 }
+    // // double data[] = {1,3,5,7,9,11,13,15,17, 0,1,2,3,4,5,6,7,8};
+    // // int dims[] = {1,2,3,3};
+    // // Tensor<double> * X = new Tensor<double>(data, 4, dims);
+
+    // // double kernel[] = {0.5,0,0,0.5, 1,2,1,2, 1,0,1,0, 0,0,1,1};
+    // // int dims2[] = {2,2,2,2};
+    // // Tensor<double> * K = new Tensor<double>(kernel, 4, dims2);
+
+    // Tensor<double> * X = new Tensor<double>(4, 32, 3, 128, 128);
+    // Tensor<double> * K = new Tensor<double>(4, 32,3,3,3);
+    // X->randn();
+    // K->randn();
+
+    // //std::cout << *X << std::endl;
+    // //std::cout << *K << std::endl;
+
+    // Tensor<double> * out = conv(X, K, std::make_pair(2,2));
+    // //std::cout << *out << std::endl;
+    // delete X;
+    // delete K;
+    // delete out;
