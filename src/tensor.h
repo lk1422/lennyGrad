@@ -10,6 +10,7 @@
 #include <random>
 
 #include "iterator.h"
+#include "utils.h"
 
 
 std::default_random_engine generator;
@@ -341,6 +342,14 @@ class Tensor {
         ***************************************************************/
         void randn();
 
+        /***************************************************************
+        * void begin() const;
+        *
+        *   Description:
+        *       Returns an iterator to the begininning of the tensor
+        ***************************************************************/
+        iterator<T> begin(int * order=NULL) const;
+
         /*Debug Methods*/
         void _printInternalArr() const;
 
@@ -612,9 +621,7 @@ std::ostream& operator<<(std::ostream& ostr, const Tensor<V> & tensor) {
     Allows for tensor to be printed to a stream using the 
     << operator
     */
-    int curr[tensor.getNDims()];
-    for(int i=0; i<tensor.getNDims(); i++) curr[i] = 0;
-    iterator<V> it(&tensor, NULL, curr);
+    iterator<V> it = tensor.begin();
     ostr << "DATA: " << std::endl;
     bool opened[tensor.n_dims];
     for(int i=0; i<tensor.n_dims; i++) opened[i] = false;
@@ -702,9 +709,7 @@ void Tensor<T>::as_contiguous() {
     T * temp = new T[n_els];
 
     //set up iterator for tensor
-    int curr[n_dims];
-    for(int i=0; i<n_dims; i++) curr[i] = 0;
-    iterator<T> it(this, NULL,  curr);
+    iterator<T> it = begin();
 
     //copy values over
     for(int i=0; i<n_els; i++){
@@ -813,5 +818,12 @@ void Tensor<T>::randn(){
     for(int i=0; i<n_els; i++){
         data[i] = distribution(generator);
     }
+}
+/*###############################################################################################################*/
+template <typename T>
+iterator<T> Tensor<T>::begin(int * order) const {
+    int arr[n_dims];
+    setAllElements(n_dims, arr, 0);
+    return iterator(this, order, arr);
 }
 #endif

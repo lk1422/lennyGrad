@@ -31,7 +31,6 @@ class iterator {
         *       index out of bounds index.
         ***************************************************************/
         T& next();
-
         /***************************************************************
         * void back();
         *
@@ -42,7 +41,6 @@ class iterator {
         *       index out of bounds index.
         ***************************************************************/
         T& back();
-
         /***************************************************************
         * void getCurr(int * curr) const;
         *
@@ -60,6 +58,7 @@ class iterator {
         *       sets the current index of the iterator to curr
         ***************************************************************/
         void setCurr(int * dims);
+
 
     private:
         const Tensor<T> * tensor;

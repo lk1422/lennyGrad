@@ -204,12 +204,10 @@ class _DIV: public Op<T> {
         OPS::inplace_mult_recip(err_sig, this->inputs[1]);
         OPS::inplace_add(this->inputs[0]->getGrad(), err_sig);
 
-        int index[this->inputs[1]->getNDims()];
-        setAllElements(this->inputs[1]->getNDims(), index, 0);
-        iterator it1(&err_sig2, NULL, index);
-        iterator it2(this->inputs[1]->getGrad(), NULL, index);
-        iterator it3(this->inputs[0], NULL, index);
-        iterator it4(this->inputs[1], NULL, index);
+        iterator it1 = err_sig2.begin();
+        iterator it2 = this->inputs[1]->getGrad()->begin();
+        iterator it3 = this->inputs[0]->begin();
+        iterator it4 = this->inputs[1]->begin();
         for(int i=0; i<err_sig2.getTotalElements(); i++){
             T denom = it4.next();
             it2.next() += (-it1.next()) * (it3.next()/(denom * denom));
@@ -302,12 +300,9 @@ class _ReLU: public Op<T>{
         //Match correctly
         this->inputs[0]->reshape_grad(n_dims, shape);
 
-        int index[this->inputs[0]->getNDims()];
-        setAllElements(this->inputs[0]->getNDims(), index, 0);
-
-        iterator it1(err_sig, NULL, index);
-        iterator it2(this->inputs[0], NULL, index);
-        iterator it3(this->inputs[0]->getGrad(), NULL, index);
+        iterator it1 = err_sig->begin();
+        iterator it2 = this->inputs[0]->begin();
+        iterator it3 = this->inputs[0]->getGrad()->begin();
 
         for(int i=0; i<this->output->getTotalElements(); i++){
             T next = it2.next();
@@ -364,9 +359,8 @@ class _PAD: public Op<T>{
         int padx = (this->output->getDims()[this->output->getNDims()-2] - this->inputs[0]->getDims()[this->inputs[0]->getNDims()-2] )/2;
 
         //Copy gradients over
+        iterator it = this->inputs[0]->getGrad()->begin();
         int index[this->inputs[0]->getNDims()];
-        setAllElements(this->inputs[0]->getNDims(), index, 0);
-        iterator it(this->inputs[0]->getGrad(), NULL, index);
         for(int i=0; i<this->inputs[0]->getTotalElements(); i++){
             it.getCurr(index);
             index[this->inputs[0]->getNDims()-2] += padx;
@@ -475,10 +469,8 @@ namespace OPS{
         for(int i=0; i<input1->getNDims(); i++)
             assert(input1->getDims()[i] == input2->getDims()[i]);
 
-        int arr[input1->getNDims()];
-        setAllElements(input1->getNDims(), arr, 0);
-        iterator<T> it1(input1, NULL,  arr);
-        iterator<T> it2(input2, NULL, arr);
+        iterator<T> it1 = input1->begin();
+        iterator<T> it2 = input2->begin();
         //sub element wise
         for(int i=0; i<input1->getTotalElements(); i++){
             it1.next() -= it2.next();
@@ -493,10 +485,8 @@ namespace OPS{
         for(int i=0; i<input1->getNDims(); i++)
             assert(input1->getDims()[i] == input2->getDims()[i]);
 
-        int arr[input1->getNDims()];
-        setAllElements(input1->getNDims(), arr, 0);
-        iterator<T> it1(input1, NULL,  arr);
-        iterator<T> it2(input2, NULL, arr);
+        iterator<T> it1 = input1->begin();
+        iterator<T> it2 = input2->begin();
         //add element wise
         for(int i=0; i<input1->getTotalElements(); i++){
             it1.next() += it2.next();
@@ -511,10 +501,8 @@ namespace OPS{
         for(int i=0; i<input1->getNDims(); i++)
             assert(input1->getDims()[i] == input2->getDims()[i]);
 
-        int arr[input1->getNDims()];
-        setAllElements(input1->getNDims(), arr, 0);
-        iterator<T> it1(input1, NULL,  arr);
-        iterator<T> it2(input2, NULL, arr);
+        iterator<T> it1 = input1->begin();
+        iterator<T> it2 = input2->begin();
         //mult element wise
         for(int i=0; i<input1->getTotalElements(); i++){
             it1.next() *= (1/it2.next());
@@ -529,10 +517,8 @@ namespace OPS{
         for(int i=0; i<input1->getNDims(); i++)
             assert(input1->getDims()[i] == input2->getDims()[i]);
 
-        int arr[input1->getNDims()];
-        setAllElements(input1->getNDims(), arr, 0);
-        iterator<T> it1(input1, NULL,  arr);
-        iterator<T> it2(input2, NULL, arr);
+        iterator<T> it1 = input1->begin();
+        iterator<T> it2 = input2->begin();
         //mult element wise
         for(int i=0; i<input1->getTotalElements(); i++){
             it1.next() *= it2.next();
@@ -553,10 +539,8 @@ namespace OPS{
             assert(input1->getDims()[i] == input2->getDims()[i]);
 
         //Set Up iterators
-        int arr[input1->getNDims()];
-        setAllElements(input1->getNDims(), arr, 0);
-        iterator<T> it1(input1, NULL,  arr);
-        iterator<T> it2(input2, NULL,  arr);
+        iterator<T> it1 = input1->begin();
+        iterator<T> it2 = input2->begin();
 
         //Add data
         T  new_data[input1->getTotalElements()];
@@ -578,10 +562,8 @@ namespace OPS{
             assert(input1->getDims()[i] == input2->getDims()[i]);
 
         //Set Up iterators
-        int arr[input1->getNDims()];
-        setAllElements(input1->getNDims(), arr, 0);
-        iterator<T> it1(input1, NULL,  arr);
-        iterator<T> it2(input2, NULL,  arr);
+        iterator<T> it1 = input1->begin();
+        iterator<T> it2 = input2->begin();
 
         //Add data
         T  new_data[input1->getTotalElements()];
@@ -603,10 +585,8 @@ namespace OPS{
             assert(input1->getDims()[i] == input2->getDims()[i]);
 
         //Set Up iterators
-        int arr[input1->getNDims()];
-        setAllElements(input1->getNDims(), arr, 0);
-        iterator<T> it1(input1, NULL,  arr);
-        iterator<T> it2(input2, NULL,  arr);
+        iterator<T> it1 = input1->begin();
+        iterator<T> it2 = input2->begin();
 
         //Add data
         T  new_data[input1->getTotalElements()];
@@ -629,10 +609,8 @@ namespace OPS{
             assert(input1->getDims()[i] == input2->getDims()[i]);
 
         //Set Up iterators
-        int arr[input1->getNDims()];
-        setAllElements(input1->getNDims(), arr, 0);
-        iterator<T> it1(input1, NULL,  arr);
-        iterator<T> it2(input2, NULL,  arr);
+        iterator<T> it1 = input1->begin();
+        iterator<T> it2 = input2->begin();
 
         //Add data
         T  new_data[input1->getTotalElements()];
@@ -667,10 +645,7 @@ namespace OPS{
     template <typename T>
     Tensor<T> * NEG(Tensor<T>* input) {
 
-        int arr[input->getNDims()];
-        setAllElements(input->getNDims(), arr, 0);
-        iterator<T> it(input, NULL,  arr);
-
+        iterator<T> it = input->begin();
         //Add data
         T  new_data[input->getTotalElements()];
         for(int i=0; i<input->getTotalElements(); i++){
@@ -686,9 +661,7 @@ namespace OPS{
     template <typename T>
     Tensor<T> * ReLU(Tensor<T>* input) {
 
-        int arr[input->getNDims()];
-        setAllElements(input->getNDims(), arr, 0);
-        iterator<T> it(input, NULL,  arr);
+        iterator<T> it = input->begin();
 
         //Add data
         T  new_data[input->getTotalElements()];
@@ -706,9 +679,7 @@ namespace OPS{
     template <typename T>
     Tensor<T> * EXP(Tensor<T>* input) {
 
-        int arr[input->getNDims()];
-        setAllElements(input->getNDims(), arr, 0);
-        iterator<T> it(input, NULL,  arr);
+        iterator<T> it = input->begin();
 
         //Add data
         T  new_data[input->getTotalElements()];
@@ -738,8 +709,8 @@ namespace OPS{
         Tensor<T> * out = new Tensor<T>(input->getNDims(), dims);
         out->setAll(pad_val);//0 pad
         //Copy elements over
-        setAllElements(input->getNDims(), dims, 0);
-        iterator it(input, NULL, dims);
+        iterator<T> it = input->begin();
+
         int index[input->getNDims()];
         for(int i=0; i<input->getTotalElements(); i++){
             it.getCurr(index);

@@ -74,6 +74,7 @@ bool test_func(T func, const std::string & out_file, Tensor<double> ** tensors){
     }
 
     std::cout << "PASSED: " << count << "/" << n_tensors << " Test Cases" << std::endl;
+    tensor_file.close();
     return count == n_tensors;
 }
 
@@ -114,6 +115,7 @@ bool test_func_unary(T func, const std::string & out_file, Tensor<double> ** ten
     }
 
     std::cout << "PASSED: " << count << "/" << n_tensors << " Test Cases" << std::endl;
+    tensor_file.close();
     return count == n_tensors;
 }
 
@@ -178,6 +180,11 @@ bool run_tests() {
     for(int i=0; i<m_n_tensors; i++){
         m_tensors[i] = getTensor(m_tensor_file);
     }
+
+    for(int i=0; i<m_n_tensors; i++) delete m_tensors[i];
+    for(int i=0; i<n_tensors; i++) delete tensors[i];
+    tensor_file.close();
+    m_tensor_file.close();
 
     bool passed_tests = true;
 
